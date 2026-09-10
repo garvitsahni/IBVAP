@@ -45,23 +45,25 @@ def test_reid_service_returns_embedding():
 
 def test_reid_service_queue_protocol():
     """ReIDService processes queue items correctly."""
+    import queue
     from edge.reid_service import ReIDService
-    req_queue = multiprocessing.Queue()
-    res_queue = multiprocessing.Queue()
+    req_queue = queue.Queue()
+    res_queue = queue.Queue()
     svc = ReIDService(req_queue, res_queue, model_path="nonexistent.onnx")
 
-    # Put a request: (frame_id, camera_id, crop, object_type)
+    # Put a request: (frame_id, camera_id, track_id, crop, object_type)
     crop = np.random.randint(0, 255, (100, 50, 3), dtype=np.uint8)
-    req_queue.put((1, "cam1", crop, "person"))
+    req_queue.put((1, "cam1", 42, crop, "person"))
 
     # Process one item
     svc._process_one()
 
     # Check response
     assert not res_queue.empty()
-    fid, cid, embedding, obj_type = res_queue.get_nowait()
+    fid, cid, tid, embedding, obj_type = res_queue.get_nowait()
     assert fid == 1
     assert cid == "cam1"
+    assert tid == 42
     assert obj_type == "person"
     # Embedding is None (no model), but protocol works
     assert embedding is None

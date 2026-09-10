@@ -115,10 +115,10 @@ class ReIDService:
         if item is None:
             return
 
-        frame_id, camera_id, crop, object_type = item
+        frame_id, camera_id, track_id, crop, object_type = item
         is_vehicle = object_type == "vehicle"
         embedding = self.extract_embedding(crop, is_vehicle=is_vehicle)
-        self.res_queue.put((frame_id, camera_id, embedding, object_type))
+        self.res_queue.put((frame_id, camera_id, track_id, embedding, object_type))
 
     def run(self):
         """Main loop — process crops from queue."""
@@ -136,13 +136,13 @@ class ReIDService:
                 logger.info("ReID service received shutdown signal")
                 break
 
-            frame_id, camera_id, crop, object_type = item
+            frame_id, camera_id, track_id, crop, object_type = item
             try:
                 is_vehicle = object_type == "vehicle"
                 embedding = self.extract_embedding(crop, is_vehicle=is_vehicle)
-                self.res_queue.put((frame_id, camera_id, embedding, object_type))
+                self.res_queue.put((frame_id, camera_id, track_id, embedding, object_type))
             except Exception as e:
                 logger.error(f"ReID failed for {camera_id}/{frame_id}: {e}")
-                self.res_queue.put((frame_id, camera_id, None, object_type))
+                self.res_queue.put((frame_id, camera_id, track_id, None, object_type))
 
         logger.info("ReID service stopped")

@@ -114,15 +114,15 @@ class CameraWorker:
             for track in tracks:
                 crop = self._crop_detection(frame, {"bbox": track.bbox})
                 object_type = "person" if track.class_name == "person" else "vehicle"
-                self.reid_req_queue.put((self._frame_id, self.camera_id, crop, object_type))
+                self.reid_req_queue.put((self._frame_id, self.camera_id, track.track_id, crop, object_type))
 
             # Collect ReID embeddings (with timeout)
             reid_embeddings = {}
             for _ in range(len(tracks)):
                 try:
-                    fid, cid, embedding, obj_type = self.reid_res_queue.get(timeout=0.2)
+                    fid, cid, tid, embedding, obj_type = self.reid_res_queue.get(timeout=0.2)
                     if cid == self.camera_id:
-                        reid_embeddings[(fid, obj_type)] = embedding
+                        reid_embeddings[(fid, tid)] = embedding
                 except Exception:
                     continue
 
@@ -130,7 +130,7 @@ class CameraWorker:
             ts_iso = timestamp.isoformat() + "Z"
             for track in tracks:
                 object_type = "person" if track.class_name == "person" else "vehicle"
-                embedding = reid_embeddings.get((self._frame_id, object_type))
+                embedding = reid_embeddings.get((self._frame_id, track.track_id))
                 event = self.publisher.build_event(
                     camera_id=self.camera_id,
                     timestamp=ts_iso,
