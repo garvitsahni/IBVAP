@@ -1,0 +1,130 @@
+"""
+Events API - POST /events from edge nodes
+"""
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime
+
+from fusion_server.db.session import get_db
+from fusion_server.db.models import DetectionEvent
+from fusion_server.core.ledger import compute_hash
+
+# Pydantic models
+from pydantic import BaseModel
+
+
+class BBox(BaseModel):
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+
+
+class DetectionEventCreate(BaseModel):
+    camera_id: str
+    timestamp: datetime
+    object_type: str  # "person" | "vehicle"
+    track_id: str
+    bbox: BBox
+    embedding: Optional[List[float]] = None
+    confidence: float
+
+
+class DetectionEventResponse(BaseModel):
+    id: int
+    camera_id: str
+    timestamp: datetime
+    object_type: str
+    track_id: str
+    bbox: BBox
+    embedding: Optional[List[float]] = None
+    confidence: float
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+router = APIRouter(prefix="/api/v1/events", tags=["events"])
+
+
+@router.post("", response_model=DetectionEventResponse, status_code=status.HTTP_201_CREATED)
+async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db)):
+    """Receive detection event from edge node."""
+    db_event = DetectionEvent(
+        camera_id=event.camera_id,
+        timestamp=event.timestamp,
+        object_type=event.object_type,
+        track_id=event.track_id,
+        bbox=event.bbox.model_dump(),
+        embedding=event.embedding,
+        confidence=event.confidence,
+    )
+    db.add(db_event)
+    db.commit()
+    db.refresh(db_event)
+
+    return DetectionEventResponse(
+        id=db_event.id,
+        camera_id=db_event.camera_id,
+        timestamp=db_event.timestamp,
+        object_type=db_event.object_type,
+        track_id=db_event.track_id,
+        bbox=BBox(**db_event.bbox),
+        embedding=db_event.embedding,
+        confidence=db_event.confidence,
+        created_at=db_event.created_at,
+    )
+
+
+@router.get("", response_model=List[DetectionEventResponse])
+async def list_events(
+    camera_id: Optional[str] = None,
+    object_type: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    """List detection events with optional filters."""
+    query = db.query(DetectionEvent)
+    if camera_id:
+        query = query.filter(DetectionEvent.camera_id == camera_id)
+    if object_type:
+        query = query.filter(DetectionEvent.object_type == object_type)
+    events = query.order_by(DetectionEvent.timestamp.desc()).offset(offset).limit(limit).all()
+
+    return [
+        DetectionEventResponse(
+            id=e.id,
+            camera_id=e.camera_id,
+            timestamp=e.timestamp,
+            object_type=e.object_type,
+            track_id=e.track_id,
+            bbox=BBox(**e.bbox),
+            embedding=e.embedding,
+            confidence=e.confidence,
+            created_at=e.created_at,
+        )
+        for e in events
+    ]
+
+
+@router.get("/{event_id}", response_model=DetectionEventResponse)
+async def get_event(event_id: int, db: Session = Depends(get_db)):
+    """Get a specific detection event by ID."""
+    event = db.query(DetectionEvent).filter(DetectionEvent.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    return DetectionEventResponse(
+        id=event.id,
+        camera_id=event.camera_id,
+        timestamp=event.timestamp,
+        object_type=event.object_type,
+        track_id=event.track_id,
+        bbox=BBox(**event.bbox),
+        embedding=event.embedding,
+        confidence=event.confidence,
+        created_at=event.created_at,
+    )

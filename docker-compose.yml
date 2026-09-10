@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: ibvap_postgres
+    environment:
+      POSTGRES_DB: ibvap
+      POSTGRES_USER: ibvap
+      POSTGRES_PASSWORD: ibvap
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./fusion_server/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ibvap -d ibvap"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: ibvap_mediamtx
+    ports:
+      - "8554:8554"
+      - "1935:1935"
+      - "8888:8888"
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
+    command: /mediamtx.yml
+
+  minio:
+    image: minio/minio:latest
+    container_name: ibvap_minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+
+volumes:
+  postgres_data:
+  minio_data:
