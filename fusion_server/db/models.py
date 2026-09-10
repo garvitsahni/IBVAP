@@ -15,6 +15,7 @@ class DetectionEvent(Base):
     camera_id = Column(String(64), nullable=False)
     timestamp = Column(DateTime(timezone=True), nullable=False)
     object_type = Column(String(16), nullable=False)  # 'person' | 'vehicle'
+    object_id = Column(String(128), nullable=True)  # Global re-ID identity (set by MatchingEngine)
     track_id = Column(String(64), nullable=False)
     bbox = Column(JSON, nullable=False)  # [x1, y1, x2, y2] normalized 0-1
     embedding = Column(Vector(512), nullable=True)  # OSNet/vehicle-ReID embedding

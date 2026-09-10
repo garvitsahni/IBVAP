@@ -36,6 +36,7 @@ class DetectionEventResponse(BaseModel):
     camera_id: str
     timestamp: datetime
     object_type: str
+    object_id: Optional[str] = None
     track_id: str
     bbox: BBox
     embedding: Optional[List[float]] = None
@@ -70,6 +71,7 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
         camera_id=db_event.camera_id,
         timestamp=db_event.timestamp,
         object_type=db_event.object_type,
+        object_id=db_event.object_id,
         track_id=db_event.track_id,
         bbox=BBox(**db_event.bbox),
         embedding=db_event.embedding,
@@ -100,6 +102,7 @@ async def list_events(
             camera_id=e.camera_id,
             timestamp=e.timestamp,
             object_type=e.object_type,
+            object_id=e.object_id,
             track_id=e.track_id,
             bbox=BBox(**e.bbox),
             embedding=e.embedding,
@@ -122,6 +125,7 @@ async def get_event(event_id: int, db: Session = Depends(get_db)):
         camera_id=event.camera_id,
         timestamp=event.timestamp,
         object_type=event.object_type,
+        object_id=event.object_id,
         track_id=event.track_id,
         bbox=BBox(**event.bbox),
         embedding=event.embedding,
