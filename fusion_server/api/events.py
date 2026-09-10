@@ -1,6 +1,8 @@
 """
 Events API - POST /events from edge nodes
 """
+import logging
+import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -9,6 +11,10 @@ from datetime import datetime
 from fusion_server.db.session import get_db
 from fusion_server.db.models import DetectionEvent
 from fusion_server.core.ledger import compute_hash
+from fusion_server.services.matching_engine import MatchingEngine
+from fusion_server.services.footprint_writer import FootprintChainWriter
+
+logger = logging.getLogger(__name__)
 
 # Pydantic models
 from pydantic import BaseModel
@@ -65,6 +71,30 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
     db.add(db_event)
     db.commit()
     db.refresh(db_event)
+
+    if event.embedding is not None:
+        matching_engine = MatchingEngine()
+        embedding_array = np.array(event.embedding, dtype=np.float32)
+        object_id = matching_engine.match_or_create(
+            db=db,
+            embedding=embedding_array,
+            object_type=event.object_type,
+            camera_id=event.camera_id,
+            timestamp=event.timestamp,
+        )
+        db_event.object_id = object_id
+        db.commit()
+        db.refresh(db_event)
+
+        footprint_writer = FootprintChainWriter()
+        footprint_writer.write_entry(
+            db=db,
+            object_id=object_id,
+            camera_id=event.camera_id,
+            timestamp=event.timestamp,
+            event_type="first_seen",
+            detection_event_id=db_event.id,
+        )
 
     return DetectionEventResponse(
         id=db_event.id,
