@@ -18,6 +18,7 @@ numpy>=1.26.4
 torch>=2.3.0
 torchvision>=0.18.0
 torchreid>=1.1.4
+scipy>=1.11.0
 
 # OCR (ANPR)
 paddleocr>=2.7.3
