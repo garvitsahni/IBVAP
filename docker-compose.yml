@@ -1,18 +1,20 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: ibvap_postgres
     environment:
       POSTGRES_DB: ibvap
       POSTGRES_USER: ibvap
       POSTGRES_PASSWORD: ibvap
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./fusion_server/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./scripts/pg_hba.conf:/etc/pg_hba_custom.conf
+    command: >
+      postgres
+        -c hba_file=/etc/pg_hba_custom.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ibvap -d ibvap"]
       interval: 5s

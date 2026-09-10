@@ -1,41 +1,40 @@
 # Core Framework
-fastapi==0.110.1
-uvicorn[standard]==0.29.0
-pydantic==2.7.1
-pydantic-settings==2.3.3
-python-multipart==0.0.6
+fastapi>=0.110.1
+uvicorn[standard]>=0.29.0
+pydantic>=2.7.1
+pydantic-settings>=2.3.3
+python-multipart>=0.0.6
 
 # Database
-sqlalchemy==2.0.30
-psycopg2-binary==2.9.9
-alembic==1.13.1
-pgvector==0.2.5
+sqlalchemy>=2.0.30
+psycopg2-binary>=2.9.9
+alembic>=1.13.1
+pgvector>=0.2.5
 
 # Computer Vision / ML
-ultralytics==8.2.100
-opencv-python-headless==4.9.0.80
-numpy==1.26.4
-torch==2.3.0
-torchvision==0.18.0
-torchreid==1.1.4
-filterpy==1.4.5
+ultralytics>=8.2.100
+opencv-python-headless>=4.9.0.80
+numpy>=1.26.4
+torch>=2.3.0
+torchvision>=0.18.0
+torchreid>=1.1.4
 
 # OCR (ANPR)
-paddleocr==2.7.3
-paddlepaddle==2.6.1
+paddleocr>=2.7.3
+paddlepaddle>=2.6.1
 
 # Geometry / Spatial
-shapely==2.0.4
+shapely>=2.0.4
 
 # Storage
-minio==7.2.7
+minio>=7.2.7
 
 # Testing
-pytest==8.2.1
-pytest-asyncio==0.23.6
-httpx==0.27.0
+pytest>=8.2.1
+pytest-asyncio>=0.23.6
+httpx>=0.27.0
 
 # Utilities
-python-dotenv==1.0.1
-pyyaml==6.0.1
-requests==2.32.3
+python-dotenv>=1.0.1
+pyyaml>=6.0.1
+requests>=2.32.3

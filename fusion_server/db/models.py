@@ -1,8 +1,8 @@
 from sqlalchemy import (
     Column, BigInteger, String, DateTime, Float, JSON, Text, Boolean, ForeignKey, Index, CheckConstraint
 )
-from sqlalchemy.dialects.postgresql import VECTOR
 from sqlalchemy.orm import declarative_base, relationship
+from pgvector.sqlalchemy import Vector
 from datetime import datetime
 
 Base = declarative_base()
@@ -17,7 +17,7 @@ class DetectionEvent(Base):
     object_type = Column(String(16), nullable=False)  # 'person' | 'vehicle'
     track_id = Column(String(64), nullable=False)
     bbox = Column(JSON, nullable=False)  # [x1, y1, x2, y2] normalized 0-1
-    embedding = Column(VECTOR(512), nullable=True)  # OSNet/vehicle-ReID embedding
+    embedding = Column(Vector(512), nullable=True)  # OSNet/vehicle-ReID embedding
     confidence = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
@@ -48,7 +48,7 @@ class FootprintEntry(Base):
 
     # Relationships
     detection_event = relationship("DetectionEvent", back_populates="footprint_entries")
-    alert = relationship("Alert", back_populates="footprint_entry")
+    alert = relationship("Alert", foreign_keys=[alert_id], remote_side="Alert.id", viewonly=True)
 
     __table_args__ = (
         Index('idx_footprint_object_time', 'object_id', 'timestamp'),
@@ -77,7 +77,7 @@ class Alert(Base):
     enriched_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    footprint_entry = relationship("FootprintEntry", back_populates="alert")
+    footprint_entry = relationship("FootprintEntry", foreign_keys=[footprint_entry_id], remote_side="FootprintEntry.id", viewonly=True)
 
     __table_args__ = (
         Index('idx_alerts_object_time', 'object_id', 'timestamp'),
@@ -94,8 +94,8 @@ class Watchlist(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     watchlist_type = Column(String(16), nullable=False)  # 'face' | 'plate'
     reference_id = Column(String(128), nullable=False)
-    embedding = Column(VECTOR(512), nullable=False)
-    metadata = Column(JSON, nullable=True)
+    embedding = Column(Vector(512), nullable=False)
+    extra_metadata = Column("metadata", JSON, nullable=True)
     active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     expires_at = Column(DateTime(timezone=True), nullable=True)
