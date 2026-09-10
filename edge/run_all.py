@@ -47,6 +47,12 @@ def main():
     detector_proc.start()
     logger.info("Detection service started")
 
+    from edge.reid_service import ReIDService
+    reid_service = ReIDService(reid_req_queue, reid_res_queue, model_path="models/osnet_ain_x1_0.onnx")
+    reid_proc = multiprocessing.Process(target=reid_service.run, daemon=True)
+    reid_proc.start()
+    logger.info("ReID service started")
+
     time.sleep(3)
 
     force_mode = None
@@ -82,9 +88,11 @@ def main():
     def shutdown(signum, frame):
         logger.info("Shutting down...")
         req_queue.put(None)
+        reid_req_queue.put(None)
         for p in workers:
             p.terminate()
         detector_proc.terminate()
+        reid_proc.terminate()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, shutdown)
