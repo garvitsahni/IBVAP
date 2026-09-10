@@ -65,3 +65,19 @@ def test_reid_service_queue_protocol():
     assert obj_type == "person"
     # Embedding is None (no model), but protocol works
     assert embedding is None
+
+
+def test_reid_service_vehicle_model():
+    """ReIDService handles vehicle crops with separate model path."""
+    from edge.reid_service import ReIDService
+    req_queue = multiprocessing.Queue()
+    res_queue = multiprocessing.Queue()
+    svc = ReIDService(
+        req_queue, res_queue,
+        model_path="models/osnet_ain_x1_0.onnx",
+        vehicle_model_path="models/vehicle_reid.onnx",
+    )
+    crop = np.random.randint(0, 255, (80, 200, 3), dtype=np.uint8)
+    embedding = svc.extract_embedding(crop, is_vehicle=True)
+    # With no vehicle model loaded, should return None
+    assert embedding is None
