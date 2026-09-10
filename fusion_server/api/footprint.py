@@ -19,6 +19,24 @@ class BBox(BaseModel):
     y2: float
 
 
+class FootprintWriteRequest(BaseModel):
+    object_id: str
+    camera_id: str
+    timestamp: datetime
+    event_type: str
+    detection_event_id: Optional[int] = None
+
+
+class FootprintWriteResponse(BaseModel):
+    id: int
+    object_id: str
+    camera_id: str
+    timestamp: str
+    event_type: str
+    hash: str
+    previous_hash: Optional[str] = None
+
+
 class DetectionEventSummary(BaseModel):
     id: int
     camera_id: str
@@ -168,3 +186,35 @@ async def verify_footprint_chain(object_id: str, db: Session = Depends(get_db)):
         "broken_at_index": broken_idx,
         "broken_entry": chain_data[broken_idx] if broken_idx is not None else None,
     }
+
+
+@router.post("", response_model=FootprintWriteResponse, status_code=status.HTTP_201_CREATED)
+async def write_footprint(request: FootprintWriteRequest, db: Session = Depends(get_db)):
+    """Write a footprint entry with hash chain linkage."""
+    from fusion_server.services.footprint_writer import FootprintChainWriter
+
+    writer = FootprintChainWriter()
+    result = writer.write_entry(
+        db=db,
+        object_id=request.object_id,
+        camera_id=request.camera_id,
+        timestamp=request.timestamp,
+        event_type=request.event_type,
+        detection_event_id=request.detection_event_id,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Footprint entry skipped (duplicate within time window)",
+        )
+
+    return FootprintWriteResponse(
+        id=result["id"],
+        object_id=result["object_id"],
+        camera_id=result["camera_id"],
+        timestamp=result["timestamp"],
+        event_type=result["event_type"],
+        hash=result["hash"],
+        previous_hash=result["previous_hash"],
+    )

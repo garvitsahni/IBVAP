@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fusion_server.db.session import init_db
 from fusion_server.api import events, alerts, footprint, watchlist
+from fusion_server.api.routes import cameras
 
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ app.include_router(events.router)
 app.include_router(alerts.router)
 app.include_router(footprint.router)
 app.include_router(watchlist.router)
+app.include_router(cameras.router)
 
 
 # Health Check Endpoint
