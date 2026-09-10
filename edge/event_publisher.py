@@ -27,6 +27,7 @@ class EventPublisher:
         bbox_pixels: list,
         frame_shape: tuple,
         confidence: float,
+        embedding=None,
     ) -> Dict[str, Any]:
         h, w = frame_shape[:2]
         x1, y1, x2, y2 = bbox_pixels
@@ -42,7 +43,7 @@ class EventPublisher:
             "object_type": object_type,
             "track_id": str(track_id),
             "bbox": [round(x_norm, 6), round(y_norm, 6), round(w_norm, 6), round(h_norm, 6)],
-            "embedding": None,
+            "embedding": embedding.tolist() if embedding is not None else None,
             "confidence": round(confidence, 4),
         }
 

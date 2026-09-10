@@ -30,6 +30,8 @@ def main():
 
     req_queue = multiprocessing.Queue()
     res_queue = multiprocessing.Queue()
+    reid_req_queue = multiprocessing.Queue()
+    reid_res_queue = multiprocessing.Queue()
 
     force_mode = None
     if args.night_mode:
@@ -44,6 +46,8 @@ def main():
         fusion_url=args.fusion_server,
         req_queue=req_queue,
         res_queue=res_queue,
+        reid_req_queue=reid_req_queue,
+        reid_res_queue=reid_res_queue,
         target_fps=args.target_fps,
         display=args.display,
         force_mode=force_mode,

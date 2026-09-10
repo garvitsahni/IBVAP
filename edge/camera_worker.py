@@ -6,6 +6,8 @@ import logging
 import multiprocessing
 from typing import Optional
 
+import numpy as np
+
 from edge.ingestion import RTSPIngestion
 from edge.night_weather import NightWeatherProcessor
 from edge.tracker import Tracker
@@ -31,6 +33,8 @@ class CameraWorker:
         fusion_url: str,
         req_queue: multiprocessing.Queue,
         res_queue: multiprocessing.Queue,
+        reid_req_queue: multiprocessing.Queue,
+        reid_res_queue: multiprocessing.Queue,
         target_fps: int = 10,
         display: bool = True,
         force_mode: Optional[str] = None,
@@ -49,7 +53,19 @@ class CameraWorker:
 
         self.req_queue = req_queue
         self.res_queue = res_queue
+        self.reid_req_queue = reid_req_queue
+        self.reid_res_queue = reid_res_queue
         self._frame_id = 0
+
+    def _crop_detection(self, frame: np.ndarray, detection: dict) -> np.ndarray:
+        """Crop bounding box from frame."""
+        x1, y1, x2, y2 = detection["bbox"]
+        h, w = frame.shape[:2]
+        x1_int = max(0, int(x1))
+        y1_int = max(0, int(y1))
+        x2_int = min(w, int(x2))
+        y2_int = min(h, int(y2))
+        return frame[y1_int:y2_int, x1_int:x2_int].copy()
 
     def run(self):
         logger.info(f"Camera worker {self.camera_id} starting ({self.camera_url})")
@@ -94,9 +110,27 @@ class CameraWorker:
 
             tracks = self.tracker.update(detections, (h, w))
 
+            # Send crops to ReID service
+            for track in tracks:
+                crop = self._crop_detection(frame, {"bbox": track.bbox})
+                object_type = "person" if track.class_name == "person" else "vehicle"
+                self.reid_req_queue.put((self._frame_id, self.camera_id, crop, object_type))
+
+            # Collect ReID embeddings (with timeout)
+            reid_embeddings = {}
+            for _ in range(len(tracks)):
+                try:
+                    fid, cid, embedding, obj_type = self.reid_res_queue.get(timeout=0.2)
+                    if cid == self.camera_id:
+                        reid_embeddings[(fid, obj_type)] = embedding
+                except Exception:
+                    continue
+
+            # Publish events with embeddings
             ts_iso = timestamp.isoformat() + "Z"
             for track in tracks:
                 object_type = "person" if track.class_name == "person" else "vehicle"
+                embedding = reid_embeddings.get((self._frame_id, object_type))
                 event = self.publisher.build_event(
                     camera_id=self.camera_id,
                     timestamp=ts_iso,
@@ -105,6 +139,7 @@ class CameraWorker:
                     bbox_pixels=track.bbox,
                     frame_shape=(h, w),
                     confidence=track.confidence,
+                    embedding=embedding,
                 )
                 self.publisher.publish(event)
 
