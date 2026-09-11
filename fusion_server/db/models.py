@@ -40,7 +40,7 @@ class FootprintEntry(Base):
     object_id = Column(String(128), nullable=False)  # Global re-ID matched identity
     camera_id = Column(String(64), nullable=False)
     timestamp = Column(DateTime(timezone=True), nullable=False)
-    event_type = Column(String(16), nullable=False)  # 'first_seen' | 'hop' | 'alert' | 'last_seen'
+    event_type = Column(String(16), nullable=False)  # 'first_seen' | 'hop' | 'alert' | 'last_seen' | 'camera_compromised'
     hash = Column(String(64), nullable=False)  # SHA-256 hex
     previous_hash = Column(String(64), nullable=True)  # NULL for first entry
     detection_event_id = Column(BigInteger, ForeignKey("detection_events.id"), nullable=True)
@@ -55,7 +55,7 @@ class FootprintEntry(Base):
         Index('idx_footprint_object_time', 'object_id', 'timestamp'),
         Index('idx_footprint_hash', 'hash'),
         Index('idx_footprint_prev_hash', 'previous_hash'),
-        CheckConstraint("event_type IN ('first_seen', 'hop', 'alert', 'last_seen')", name='ck_footprint_event_type'),
+        CheckConstraint("event_type IN ('first_seen', 'hop', 'alert', 'last_seen', 'camera_compromised')", name='ck_footprint_event_type'),
     )
 
 

@@ -30,7 +30,7 @@ CREATE TABLE footprint_entries (
     object_id VARCHAR(128) NOT NULL,  -- Global re-ID matched identity
     camera_id VARCHAR(64) NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
-    event_type VARCHAR(16) NOT NULL CHECK (event_type IN ('first_seen', 'hop', 'alert', 'last_seen')),
+    event_type VARCHAR(16) NOT NULL CHECK (event_type IN ('first_seen', 'hop', 'alert', 'last_seen', 'camera_compromised')),
     hash CHAR(64) NOT NULL,  -- SHA-256 hex
     previous_hash CHAR(64),  -- NULL for first entry in chain
     detection_event_id BIGINT REFERENCES detection_events(id),
