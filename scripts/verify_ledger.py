@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from fusion_server.db.session import SessionLocal
-from fusion_server.db.models import FootprintEntry
+from fusion_server.db.models import FootprintEntry, Alert
 from fusion_server.core.ledger import verify_chain, compute_hash
 
 
@@ -108,6 +108,31 @@ def verify_specific_chain(db: Session, object_id: str) -> dict:
     return result
 
 
+def verify_alert_chains(db: Session) -> dict:
+    """Verify all alert chains in the database."""
+    alerts = db.query(Alert).filter(Alert.hash.isnot(None)).order_by(Alert.created_at.asc()).all()
+
+    if not alerts:
+        return {"total_alerts": 0, "valid": 0, "broken": 0}
+
+    results = {"total_alerts": len(alerts), "valid": 0, "broken": 0, "details": []}
+
+    for i, alert in enumerate(alerts):
+        if i == 0:
+            if alert.previous_hash is not None:
+                results["broken"] += 1
+                results["details"].append({"alert_id": alert.alert_id, "broken": True, "reason": "first alert has previous_hash"})
+                continue
+        else:
+            if alert.previous_hash != alerts[i-1].hash:
+                results["broken"] += 1
+                results["details"].append({"alert_id": alert.alert_id, "broken": True, "reason": "previous_hash mismatch"})
+                continue
+        results["valid"] += 1
+
+    return results
+
+
 def test_tamper_detection():
     """Test that tampering is detected."""
     print("Testing tamper detection...")
@@ -182,6 +207,7 @@ def main():
                 print(f"BROKEN at index {result['broken_at_index']}: {result['broken_entry']}")
         else:
             results = verify_all_chains(db)
+            print("=== Footprint Chains ===")
             print(f"Total chains: {results['total_chains']}")
             print(f"Valid: {results['valid_chains']}")
             print(f"Broken: {results['broken_chains']}")
@@ -192,7 +218,17 @@ def main():
                 if not detail['is_valid']:
                     print(f"    Broken at index {detail.get('broken_at_index')}")
 
-            if results['broken_chains'] > 0:
+            alert_results = verify_alert_chains(db)
+            print("\n=== Alert Chains ===")
+            print(f"Total alerts: {alert_results['total_alerts']}")
+            print(f"Valid: {alert_results['valid']}")
+            print(f"Broken: {alert_results['broken']}")
+            if alert_results.get('details'):
+                for d in alert_results['details']:
+                    print(f"  ✗ Alert {d['alert_id']}: {d['reason']}")
+
+            broken_total = results['broken_chains'] + alert_results['broken']
+            if broken_total > 0:
                 sys.exit(1)
     finally:
         db.close()

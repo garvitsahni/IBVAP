@@ -105,7 +105,7 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
   "object_id": "string",
   "camera_id": "string",
   "timestamp": "ISO8601",
-  "event_type": "first_seen | hop | alert | last_seen",
+  "event_type": "first_seen | hop | alert | last_seen | camera_compromised",
   "hash": "string",
   "previous_hash": "string"
 }
@@ -123,7 +123,9 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
   "threat_score": float,
   "clip_path": "string | null",
   "ai_explanation": "string | null",
-  "trajectory_projection": [[x, y], ...] | null
+  "trajectory_projection": [[x, y], ...] | null,
+  "hash": "string",
+  "previous_hash": "string | null"
 }
 ```
 
