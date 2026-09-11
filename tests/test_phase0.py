@@ -39,10 +39,12 @@ class TestLedgerIntegrity:
             {"object_id": "obj1", "camera_id": "cam3", "timestamp": "2024-01-01T00:10:00", "event_type": "alert", "hash": "", "previous_hash": None},
         ]
         for i, entry in enumerate(chain):
-            data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
-            entry['hash'] = compute_hash(data + "footprint")
             if i > 0:
                 entry['previous_hash'] = chain[i-1]['hash']
+            data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
+            if entry['previous_hash']:
+                data += entry['previous_hash']
+            entry['hash'] = compute_hash(data)
 
         is_valid, broken_idx = verify_chain(chain)
         assert is_valid is True
@@ -55,10 +57,12 @@ class TestLedgerIntegrity:
             {"object_id": "obj1", "camera_id": "cam2", "timestamp": "2024-01-01T00:05:00", "event_type": "hop", "hash": "", "previous_hash": None},
         ]
         for i, entry in enumerate(chain):
-            data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
-            entry['hash'] = compute_hash(data + "footprint")
             if i > 0:
                 entry['previous_hash'] = chain[i-1]['hash']
+            data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
+            if entry['previous_hash']:
+                data += entry['previous_hash']
+            entry['hash'] = compute_hash(data)
 
         # Tamper with camera_id
         chain[1]['camera_id'] = 'cam99'
@@ -74,10 +78,12 @@ class TestLedgerIntegrity:
             {"object_id": "obj1", "camera_id": "cam2", "timestamp": "2024-01-01T00:05:00", "event_type": "hop", "hash": "", "previous_hash": None},
         ]
         for i, entry in enumerate(chain):
-            data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
-            entry['hash'] = compute_hash(data + "footprint")
             if i > 0:
                 entry['previous_hash'] = chain[i-1]['hash']
+            data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
+            if entry['previous_hash']:
+                data += entry['previous_hash']
+            entry['hash'] = compute_hash(data)
 
         # Tamper previous_hash
         chain[1]['previous_hash'] = 'tampered_hash'

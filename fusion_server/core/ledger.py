@@ -18,7 +18,9 @@ def verify_chain(entries: list) -> tuple[bool, Optional[int]]:
     for i, entry in enumerate(entries):
         # Verify current hash matches computed hash
         expected_data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
-        expected_hash = compute_hash(expected_data + "footprint")
+        if entry.get('previous_hash'):
+            expected_data += entry['previous_hash']
+        expected_hash = compute_hash(expected_data)
         if entry['hash'] != expected_hash:
             return False, i
 
@@ -36,7 +38,9 @@ def verify_chain(entries: list) -> tuple[bool, Optional[int]]:
 def append_entry(object_id: str, camera_id: str, timestamp: str, event_type: str, previous_hash: Optional[str]) -> dict:
     """Create a new footprint entry with proper hash chain linkage."""
     data = f"{object_id}{camera_id}{timestamp}{event_type}"
-    hash_value = compute_hash(data + "footprint")
+    if previous_hash:
+        data += previous_hash
+    hash_value = compute_hash(data)
     return {
         "object_id": object_id,
         "camera_id": camera_id,

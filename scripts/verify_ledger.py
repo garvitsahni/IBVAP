@@ -112,33 +112,30 @@ def test_tamper_detection():
     """Test that tampering is detected."""
     print("Testing tamper detection...")
 
-    # Create a valid chain
     chain = [
         {"object_id": "test_obj", "camera_id": "cam1", "timestamp": "2024-01-01T00:00:00", "event_type": "first_seen", "hash": "", "previous_hash": None},
         {"object_id": "test_obj", "camera_id": "cam2", "timestamp": "2024-01-01T00:05:00", "event_type": "hop", "hash": "", "previous_hash": None},
         {"object_id": "test_obj", "camera_id": "cam3", "timestamp": "2024-01-01T00:10:00", "event_type": "alert", "hash": "", "previous_hash": None},
     ]
 
-    # Compute correct hashes
     for i, entry in enumerate(chain):
-        data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
-        entry['hash'] = compute_hash(data + "footprint")
         if i > 0:
             entry['previous_hash'] = chain[i-1]['hash']
+        data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
+        if entry['previous_hash']:
+            data += entry['previous_hash']
+        entry['hash'] = compute_hash(data)
 
-    # Verify valid chain
     is_valid, _ = verify_chain(chain)
     assert is_valid, "Valid chain should pass verification"
-    print("✓ Valid chain passes verification")
+    print("[OK] Valid chain passes verification")
 
-    # Tamper with middle entry
-    chain[1]['camera_id'] = 'cam99'  # Change camera_id
+    chain[1]['camera_id'] = 'cam99'
 
-    # Verify tampered chain fails
     is_valid, broken_idx = verify_chain(chain)
     assert not is_valid, "Tampered chain should fail verification"
     assert broken_idx == 1, "Should detect tampering at index 1"
-    print("✓ Tampered chain correctly fails verification")
+    print("[OK] Tampered chain correctly fails verification")
 
     # Test previous_hash tampering
     chain2 = [
@@ -146,17 +143,18 @@ def test_tamper_detection():
         {"object_id": "test_obj", "camera_id": "cam2", "timestamp": "2024-01-01T00:05:00", "event_type": "hop", "hash": "", "previous_hash": None},
     ]
     for i, entry in enumerate(chain2):
-        data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
-        entry['hash'] = compute_hash(data + "footprint")
         if i > 0:
             entry['previous_hash'] = chain2[i-1]['hash']
+        data = f"{entry['object_id']}{entry['camera_id']}{entry['timestamp']}{entry['event_type']}"
+        if entry['previous_hash']:
+            data += entry['previous_hash']
+        entry['hash'] = compute_hash(data)
 
-    # Tamper previous_hash
     chain2[1]['previous_hash'] = 'tampered_hash'
 
     is_valid, broken_idx = verify_chain(chain2)
     assert not is_valid, "Chain with tampered previous_hash should fail"
-    print("✓ Tampered previous_hash correctly detected")
+    print("[OK] Tampered previous_hash correctly detected")
 
     print("\nAll tamper detection tests passed!")
 

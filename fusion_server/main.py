@@ -95,7 +95,7 @@ async def test_noop_pipeline():
         db.refresh(fake_event)
 
         # 2. Create footprint entry (first_seen)
-        footprint_hash = compute_hash(f"obj_test_001{fake_event.camera_id}{fake_event.timestamp.isoformat()}footprint")
+        footprint_hash = compute_hash(f"obj_test_001{fake_event.camera_id}{fake_event.timestamp.isoformat()}first_seen")
         footprint = FootprintEntry(
             object_id="obj_test_001",
             camera_id=fake_event.camera_id,
