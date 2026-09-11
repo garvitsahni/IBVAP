@@ -13,6 +13,32 @@ TARGET_CLASSES = {0, 2, 3, 5, 7}
 CLASS_NAMES = {0: "person", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
 
 
+def motion_detection(frame: np.ndarray, prev_frame: np.ndarray, min_area: int = 500) -> List[Dict]:
+    """Frame-difference motion detection fallback."""
+    import cv2
+    if prev_frame is None:
+        return []
+    gray1 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
+    diff = cv2.absdiff(gray1, gray2)
+    _, thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    detections = []
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < min_area:
+            continue
+        x, y, w, h = cv2.boundingRect(contour)
+        confidence = min(area / 10000.0, 1.0)
+        detections.append({
+            "bbox": [float(x), float(y), float(x + w), float(y + h)],
+            "confidence": confidence,
+            "class_id": 0,
+            "class_name": "person",
+        })
+    return detections
+
+
 class DetectionService:
     """
     Runs YOLOv8n inference. Designed to run as a separate process.
@@ -94,3 +120,10 @@ class DetectionService:
                 self.res_queue.put((frame_id, camera_id, []))
 
         logger.info("Detection service stopped")
+
+    def set_model(self, path: str):
+        """Switch to a different model weights file."""
+        from ultralytics import YOLO
+        logger.info(f"Switching detection model to {path}")
+        self.model_path = path
+        self._model = YOLO(path)
