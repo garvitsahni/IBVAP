@@ -69,6 +69,8 @@ class Alert(Base):
     timestamp = Column(DateTime(timezone=True), nullable=False)
     reason = Column(String(256), nullable=False)  # Deterministic reason from rule engine
     status = Column(String(16), nullable=False, default='fired')  # 'fired' | 'enriched' | 'acknowledged'
+    hash = Column(String(64), nullable=True)  # SHA-256 hex
+    previous_hash = Column(String(64), nullable=True)  # NULL for first alert
     threat_score = Column(Float, nullable=False, default=0.0)
     clip_path = Column(String(512), nullable=True)
     ai_explanation = Column(Text, nullable=True)
@@ -84,6 +86,8 @@ class Alert(Base):
         Index('idx_alerts_object_time', 'object_id', 'timestamp'),
         Index('idx_alerts_status', 'status'),
         Index('idx_alerts_alert_id', 'alert_id'),
+        Index('idx_alerts_hash', 'hash'),
+        Index('idx_alerts_prev_hash', 'previous_hash'),
         CheckConstraint('threat_score >= 0 AND threat_score <= 1', name='ck_alert_threat_score'),
         CheckConstraint("status IN ('fired', 'enriched', 'acknowledged')", name='ck_alert_status'),
     )

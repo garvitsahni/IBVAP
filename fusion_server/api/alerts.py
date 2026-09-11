@@ -9,6 +9,7 @@ import uuid
 
 from fusion_server.db.session import get_db
 from fusion_server.db.models import Alert
+from fusion_server.core.alert_ledger import AlertLedger
 
 from pydantic import BaseModel
 
@@ -69,8 +70,9 @@ async def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
         trajectory_projection=alert.trajectory_projection,
     )
     db.add(db_alert)
-    db.commit()
-    db.refresh(db_alert)
+
+    alert_ledger = AlertLedger()
+    alert_ledger.write_alert_with_hash(db, db_alert)
 
     return AlertResponse(
         id=db_alert.id,
