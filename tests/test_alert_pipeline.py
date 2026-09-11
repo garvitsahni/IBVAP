@@ -274,8 +274,10 @@ class TestSSEBroadcaster:
             polygon=[[0.0, 0.0], [0.5, 0.0], [0.5, 0.5], [0.0, 0.5]],
         ))
         event = _make_event(bbox={"x1": 0.1, "y1": 0.1, "x2": 0.2, "y2": 0.2})
-        pipeline.process(event)
-        broadcaster.broadcast.assert_called_once()
+        with patch("fusion_server.services.alert_pipeline.asyncio.create_task") as mock_task:
+            mock_task.return_value = MagicMock()
+            pipeline.process(event)
+            mock_task.assert_called_once()
 
     def test_no_broadcast_when_not_set(self):
         pipeline = AlertPipeline(db=_mock_db())

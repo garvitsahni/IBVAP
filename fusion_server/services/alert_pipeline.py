@@ -4,6 +4,7 @@ Ties together rule engine, trajectory buffer, threat scoring,
 trajectory projection, suspicious activity detection, and alert ledger.
 """
 import uuid
+import asyncio
 import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -37,6 +38,7 @@ class AlertPipeline:
         trajectory_buffer: Optional[TrajectoryBuffer] = None,
         suspicious_detector: Optional[SuspiciousActivityDetector] = None,
         db=None,
+        enrichment_service=None,
     ):
         self.rule_engine = rule_engine or RuleEngine()
         self.trajectory_buffer = trajectory_buffer or TrajectoryBuffer()
@@ -44,10 +46,15 @@ class AlertPipeline:
         self.db = db
         self._alert_ledger = AlertLedger()
         self.sse_broadcaster = None
+        self.enrichment_service = enrichment_service
 
     def set_sse_broadcaster(self, broadcaster) -> None:
         """Inject SSE broadcaster for live alert delivery (called later when available)."""
         self.sse_broadcaster = broadcaster
+
+    def set_enrichment_service(self, service) -> None:
+        """Inject AI enrichment service (called later when available)."""
+        self.enrichment_service = service
 
     def process(self, event: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -120,21 +127,15 @@ class AlertPipeline:
                 self._alert_ledger.write_alert_with_hash(self.db, alert)
                 alerts.append(alert)
 
-                # Broadcast asynchronously (does not block alert delivery)
-                if self.sse_broadcaster is not None:
+                # Fire-and-forget enrichment + broadcast (does not block alert delivery)
+                if self.sse_broadcaster is not None or self.enrichment_service is not None:
                     try:
-                        self.sse_broadcaster.broadcast({
-                            "type": "alert",
-                            "alert_id": alert.alert_id,
-                            "object_id": object_id,
-                            "camera_id": camera_id,
-                            "reason": alert.reason,
-                            "threat_score": alert.threat_score,
-                            "threat_level": get_threat_level(alert.threat_score),
-                            "timestamp": timestamp.isoformat(),
-                        })
-                    except Exception:
-                        logger.exception("SSE broadcast failed for alert %s", alert.alert_id)
+                        asyncio.create_task(
+                            self._enrich_and_broadcast(alert, event, trajectory_projection=[])
+                        )
+                    except RuntimeError:
+                        # No running event loop — skip enrichment silently
+                        logger.debug("No event loop; skipping enrichment for alert %s", alert.alert_id)
 
         # 6. Project trajectory
         trajectory_projection = []
@@ -154,6 +155,60 @@ class AlertPipeline:
         """Project trajectory from buffer history."""
         from fusion_server.core.trajectory import project_trajectory
         return project_trajectory(history, prediction_steps=steps)
+
+    async def _enrich_and_broadcast(self, alert, event: Dict[str, Any], trajectory_projection=None) -> None:
+        """
+        Fire-and-forget: enrich alert with AI explanation, then broadcast both
+        the alert_fired and alert_enriched events via SSE.
+
+        This method catches ALL exceptions internally so it never blocks
+        or crashes the main alert delivery path (AGENTS.md Rule 4).
+        """
+        try:
+            ai_explanation = ""
+            if self.enrichment_service is not None:
+                alert_data = {
+                    "alert_id": alert.alert_id,
+                    "object_id": alert.object_id,
+                    "camera_id": alert.camera_id,
+                    "reason": alert.reason,
+                    "threat_score": alert.threat_score,
+                    "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, "isoformat") else str(alert.timestamp),
+                    "trajectory": {"history": trajectory_projection or []},
+                }
+                try:
+                    ai_explanation = self.enrichment_service.enrich(alert_data)
+                except Exception:
+                    logger.exception("AI enrichment failed for alert %s", alert.alert_id)
+                    ai_explanation = ""
+
+            if self.sse_broadcaster is not None:
+                # Broadcast alert_fired first
+                try:
+                    await self.sse_broadcaster.broadcast_alert_fired({
+                        "alert_id": alert.alert_id,
+                        "object_id": alert.object_id,
+                        "camera_id": alert.camera_id,
+                        "reason": alert.reason,
+                        "threat_score": alert.threat_score,
+                        "threat_level": get_threat_level(alert.threat_score),
+                        "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, "isoformat") else str(alert.timestamp),
+                    })
+                except Exception:
+                    logger.exception("SSE broadcast_alert_fired failed for alert %s", alert.alert_id)
+
+                # Broadcast alert_enriched if we got an explanation
+                if ai_explanation:
+                    try:
+                        await self.sse_broadcaster.broadcast_alert_enriched(
+                            alert_id=alert.alert_id,
+                            ai_explanation=ai_explanation,
+                            trajectory_projection=trajectory_projection,
+                        )
+                    except Exception:
+                        logger.exception("SSE broadcast_alert_enriched failed for alert %s", alert.alert_id)
+        except Exception:
+            logger.exception("Unexpected error in _enrich_and_broadcast for alert %s", alert.alert_id)
 
     @staticmethod
     def _infer_time_of_day(timestamp: datetime) -> str:

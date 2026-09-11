@@ -130,7 +130,13 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
 
         # Alert pipeline: rule engine, trajectory, suspicious activity, threat scoring
         from fusion_server.services.alert_pipeline import AlertPipeline
-        pipeline = AlertPipeline(db=db)
+        from fusion_server.services.ai_enrichment import AIEnrichmentService
+        from fusion_server.services.sse_broadcaster import SSEBroadcaster
+
+        enrichment_service = AIEnrichmentService()
+        broadcaster = SSEBroadcaster()
+        pipeline = AlertPipeline(db=db, enrichment_service=enrichment_service)
+        pipeline.set_sse_broadcaster(broadcaster)
         pipeline.process({
             "camera_id": event.camera_id,
             "object_id": object_id,
