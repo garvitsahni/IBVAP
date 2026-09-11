@@ -53,6 +53,14 @@ class SSEBroadcaster:
         }
         await self._broadcast(event)
 
+    async def broadcast_camera_status_changed(self, camera_data: dict) -> None:
+        """Broadcast a camera_status_changed event to all subscribers."""
+        event = {
+            "event": "camera_status_changed",
+            "data": json.dumps(camera_data),
+        }
+        await self._broadcast(event)
+
     async def _broadcast(self, event: dict) -> None:
         """Send event to all subscribers, removing disconnected ones."""
         dead = []
