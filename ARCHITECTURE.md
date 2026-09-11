@@ -84,7 +84,7 @@
 
 No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
 
-## 5. Data Contracts (Frozen at Phase 0)
+## 5. Data Contracts (Frozen at Phase 0 — updated Phase 4)
 
 ### DetectionEvent (edge → fusion server)
 ```json
@@ -105,7 +105,7 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
   "object_id": "string",
   "camera_id": "string",
   "timestamp": "ISO8601",
-  "event_type": "first_seen | hop | alert | last_seen | camera_compromised",
+  "event_type": "first_seen | hop | alert | last_seen | camera_compromised | roi_intrusion | suspicious_activity",
   "hash": "string",
   "previous_hash": "string"
 }
@@ -119,17 +119,52 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
   "camera_id": "string",
   "timestamp": "ISO8601",
   "reason": "string",
-  "status": "fired | enriched",
+  "status": "fired | enriched | acknowledged",
   "threat_score": float,
   "clip_path": "string | null",
   "ai_explanation": "string | null",
   "trajectory_projection": [[x, y], ...] | null,
   "hash": "string",
-  "previous_hash": "string | null"
+  "previous_hash": "string | null",
+  "footprint_entry_id": "int | null",
+  "created_at": "ISO8601",
+  "enriched_at": "ISO8601 | null"
 }
 ```
 
-These three contracts are the seams between every team member's workstream. Changing any field requires updating this document and notifying all phase owners.
+### ROI (fusion server, virtual fence configuration)
+```json
+{
+  "id": "uuid",
+  "camera_id": "string",
+  "name": "string",
+  "polygon": [[x, y], ...],
+  "alert_on_enter": bool,
+  "alert_on_exit": bool,
+  "object_types": ["person", "vehicle"] | null,
+  "active": bool,
+  "created_at": "ISO8601"
+}
+```
+- `polygon`: normalized 0-1 coordinates, minimum 3 vertices. Defines the virtual fence zone.
+- `camera_id`: `"*"` matches all cameras; a specific camera ID scopes the ROI.
+- `object_types`: `null` means all object types trigger this ROI.
+
+### PlateDetection (fusion server, ANPR pipeline)
+```json
+{
+  "object_id": "string",
+  "camera_id": "string",
+  "plate_text": "string",
+  "confidence": float,
+  "bbox": [x, y, w, h],
+  "created_at": "ISO8601"
+}
+```
+- Written by the ANPR pipeline (plate detector + OCR) as a parallel workstream.
+- `bbox`: normalized 0-1 coordinates of the detected plate region.
+
+These five contracts are the seams between every team member's workstream. Changing any field requires updating this document and notifying all phase owners.
 
 ## 6. Deployment Stages
 
