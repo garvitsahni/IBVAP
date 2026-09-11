@@ -1,0 +1,43 @@
+# Review package: 416b76b..b540415
+
+## Commits
+b540415 Phase 2: add onnxruntime, scikit-image dependencies and model directory
+
+## Files changed
+ models/osnet_ain_x1_0.onnx    | Bin 0 -> 3397 bytes
+ models/vehicle_reid_stub.onnx | Bin 0 -> 6457 bytes
+ requirements.txt              |   4 ++++
+ 3 files changed, 4 insertions(+)
+
+## Diff
+diff --git a/models/osnet_ain_x1_0.onnx b/models/osnet_ain_x1_0.onnx
+new file mode 100644
+index 000047d..040f47d
+Binary files /dev/null and b/models/osnet_ain_x1_0.onnx differ
+diff --git a/models/vehicle_reid_stub.onnx b/models/vehicle_reid_stub.onnx
+new file mode 100644
+index 0000000..70d9e35
+Binary files /dev/null and b/models/vehicle_reid_stub.onnx differ
+diff --git a/requirements.txt b/requirements.txt
+index fde355a..56e36dc 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -28,14 +28,18 @@ paddlepaddle>=2.6.1
+ shapely>=2.0.4
+ 
+ # Storage
+ minio>=7.2.7
+ 
+ # Testing
+ pytest>=8.2.1
+ pytest-asyncio>=0.23.6
+ httpx>=0.27.0
+ 
++# Re-ID / Embeddings
++onnxruntime>=1.17.0
++scikit-image>=0.22.0
++
+ # Utilities
+ python-dotenv>=1.0.1
+ pyyaml>=6.0.1
+ requests>=2.32.3

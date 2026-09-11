@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Inter, Segoe UI, Arial, sans-serif">
+<defs>
+<marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#1F2937"/></marker>
+</defs>
+<rect width="1280" height="720" fill="#E9EEF3"/>
+<!-- grid faint -->
+<g stroke="#D7DFE8" stroke-width="1">
+<line x1="0" y1="180" x2="1280" y2="180"/><line x1="0" y1="360" x2="1280" y2="360"/><line x1="0" y1="540" x2="1280" y2="540"/>
+<line x1="320" y1="0" x2="320" y2="720"/><line x1="640" y1="0" x2="640" y2="720"/><line x1="960" y1="0" x2="960" y2="720"/>
+</g>
+<text x="24" y="40" font-size="24" font-weight="800" fill="#111827">IBVAP — Workflow</text>
+
+<!-- lanes -->
+<rect x="0" y="70" width="70" height="250" fill="#DDE4EC"/>
+<rect x="0" y="320" width="70" height="280" fill="#D2DBE6"/>
+<text x="35" y="195" font-size="12" font-weight="700" fill="#374151" text-anchor="middle" transform="rotate(-90 35,195)">EDGE NODE</text>
+<text x="35" y="460" font-size="12" font-weight="700" fill="#374151" text-anchor="middle" transform="rotate(-90 35,460)">FUSION SERVER</text>
+<rect x="70" y="70" width="1210" height="250" fill="none" stroke="#B9C4D2" stroke-width="1.5"/>
+<rect x="70" y="320" width="1210" height="280" fill="none" stroke="#B9C4D2" stroke-width="1.5"/>
+
+<g font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">
+<!-- START -->
+<ellipse cx="135" cy="195" rx="42" ry="24" fill="#C2437F"/>
+<text x="135" y="199">Start</text>
+<!-- edge chain - correct pipeline order + technical specs -->
+<rect x="195" y="159" width="110" height="72" rx="4" fill="#2F6F6A"/><text x="250" y="181">Ingest</text><text x="250" y="195" font-weight="400">RTSP H.264</text><text x="250" y="208" font-size="9" font-weight="400" fill="#BFD9D6">mediamtx :8554 15fps</text>
+<polygon points="415,159 485,195 415,231 345,195" fill="#EAA324"/>
+<text x="415" y="189">Night /</text><text x="415" y="202" font-size="10">weather?</text><text x="415" y="248" font-size="9" font-weight="400" fill="#374151">lux&lt;40 • vis-score • CLAHE/dehaze</text>
+<rect x="505" y="159" width="110" height="72" rx="4" fill="#2F6F6A"/><text x="560" y="181">Detect</text><text x="560" y="195" font-weight="400">YOLOv8n 640px</text><text x="560" y="208" font-size="9" font-weight="400" fill="#BFD9D6">conf≥0.5 NMS 0.45 CPU</text>
+<rect x="635" y="159" width="110" height="72" rx="4" fill="#2F6F6A"/><text x="690" y="181">Track</text><text x="690" y="195" font-weight="400">ByteTrack</text><text x="690" y="208" font-size="9" font-weight="400" fill="#BFD9D6">IoU • 30f buffer • track_id</text>
+<rect x="765" y="159" width="115" height="72" rx="4" fill="#2F6F6A"/><text x="822" y="181">Re-ID embed</text><text x="822" y="195" font-weight="400">OSNet 512-d</text><text x="822" y="208" font-size="9" font-weight="400" fill="#BFD9D6">veh 2048-d • fp16</text>
+<rect x="900" y="159" width="120" height="72" rx="4" fill="#2F6F6A"/><text x="960" y="181">Pack event</text><text x="960" y="195" font-weight="400">DetectionEvent</text><text x="960" y="208" font-size="9" font-weight="400" fill="#BFD9D6">cam ts bbox track emb conf</text>
+<rect x="1075" y="159" width="120" height="72" rx="4" fill="#2F6F6A"/><text x="1135" y="181">Send to</text><text x="1135" y="195" font-weight="400">fusion</text><text x="1135" y="208" font-size="9" font-weight="400" fill="#BFD9D6">POST /events • LAN • TLS</text>
+
+<!-- fusion chain + technical specs -->
+<rect x="195" y="414" width="120" height="72" rx="4" fill="#2F6F6A"/><text x="255" y="436">Match</text><text x="255" y="450" font-weight="400">cosine ≥0.75</text><text x="255" y="463" font-size="9" font-weight="400" fill="#BFD9D6">FAISS 10k • object_id</text>
+<rect x="335" y="414" width="120" height="72" rx="4" fill="#2F6F6A"/><text x="395" y="436">Footprint</text><text x="395" y="450" font-weight="400">1st→hop→last</text><text x="395" y="463" font-size="9" font-weight="400" fill="#BFD9D6">PG • hash+prev_hash</text>
+<polygon points="545,404 615,450 545,496 475,450" fill="#EAA324"/>
+<text x="545" y="444">ROI</text><text x="545" y="458">violation?</text><text x="545" y="513" font-size="9" font-weight="400" fill="#374151">polygon vs centroid • geometry only</text>
+<rect x="635" y="414" width="120" height="72" rx="4" fill="#2F6F6A"/><text x="695" y="436">Fire alert</text><text x="695" y="450" font-weight="400">status=fired</text><text x="695" y="463" font-size="9" font-weight="400" fill="#BFD9D6">reason+score • &lt;100ms</text>
+<rect x="775" y="414" width="120" height="72" rx="4" fill="#2F6F6A"/><text x="835" y="436">Ledger</text><text x="835" y="450" font-weight="400">SYNC block</text><text x="835" y="463" font-size="9" font-weight="400" fill="#BFD9D6">SHA256 • verify walk</text>
+<polygon points="985,404 1055,450 985,496 915,450" fill="#EAA324"/>
+<text x="985" y="444">Enrich?</text><text x="985" y="458" font-size="10" font-weight="400">async AI</text><text x="985" y="513" font-size="9" font-weight="400" fill="#374151">local LLM/VLM • non-blocking</text>
+<rect x="1075" y="414" width="120" height="72" rx="4" fill="#2F6F6A"/><text x="1135" y="436">Broadcast</text><text x="1135" y="450" font-weight="400">WS /alerts</text><text x="1135" y="463" font-size="9" font-weight="400" fill="#BFD9D6">FastAPI GET • dashboard</text>
+</g>
+
+<!-- arrows edge lane -->
+<g stroke="#1F2937" stroke-width="1.6" fill="none" marker-end="url(#a)">
+<line x1="177" y1="195" x2="195" y2="195"/>
+<line x1="305" y1="195" x2="345" y2="195"/>
+<line x1="485" y1="195" x2="505" y2="195"/>
+<line x1="615" y1="195" x2="635" y2="195"/>
+<line x1="745" y1="195" x2="765" y2="195"/>
+<line x1="880" y1="195" x2="900" y2="195"/>
+<line x1="1020" y1="195" x2="1075" y2="195"/>
+<!-- send down to fusion -->
+<line x1="1135" y1="231" x2="1135" y2="414"/>
+<!-- fusion lane -->
+<line x1="315" y1="450" x2="335" y2="450"/>
+<line x1="455" y1="450" x2="475" y2="450"/>
+<line x1="615" y1="450" x2="635" y2="450"/>
+<line x1="755" y1="450" x2="775" y2="450"/>
+<line x1="895" y1="450" x2="915" y2="450"/>
+<line x1="1055" y1="450" x2="1075" y2="450"/>
+<!-- No loop back -->
+<line x1="505" y1="496" x2="505" y2="560" />
+<line x1="505" y1="560" x2="395" y2="560" />
+<line x1="395" y1="560" x2="395" y2="486" />
+<!-- enrich loop -->
+<line x1="985" y1="496" x2="985" y2="560"/>
+<line x1="985" y1="560" x2="835" y2="560"/>
+<line x1="835" y1="560" x2="835" y2="486"/>
+</g>
+<g font-size="10" fill="#374151" text-anchor="middle">
+<text x="450" y="548" font-size="10" fill="#374151" text-anchor="middle">No</text>
+<text x="430" y="575" font-size="10" fill="#374151" text-anchor="middle">log only</text>
+<text x="910" y="552">async clip + AI → enriched</text>
+<text x="1150" y="340" font-weight="700" fill="#2F6F6A">✕ no raw video crosses edge→fusion</text>
+</g>
+<text x="24" y="650" font-size="12" fill="#4B5563">Teal = process • Orange = decision • Pink = start • Lanes: Edge (top) / Fusion (bottom) • Solid = sync/blocking, loops = async</text>
+</svg>

@@ -131,10 +131,10 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
         # Alert pipeline: rule engine, trajectory, suspicious activity, threat scoring
         from fusion_server.services.alert_pipeline import AlertPipeline
         from fusion_server.services.ai_enrichment import AIEnrichmentService
-        from fusion_server.services.sse_broadcaster import SSEBroadcaster
+        from fusion_server.services.broadcaster import get_broadcaster
 
         enrichment_service = AIEnrichmentService()
-        broadcaster = SSEBroadcaster()
+        broadcaster = get_broadcaster()
         pipeline = AlertPipeline(db=db, enrichment_service=enrichment_service)
         pipeline.set_sse_broadcaster(broadcaster)
         pipeline.process({

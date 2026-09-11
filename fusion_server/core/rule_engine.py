@@ -63,7 +63,7 @@ class RuleEngine:
         point = Point(centroid_x, centroid_y)
 
         for roi in self.rois:
-            if roi.camera_id != camera_id:
+            if roi.camera_id != camera_id and roi.camera_id != "*":
                 continue
             if roi.object_types and object_type not in roi.object_types:
                 continue

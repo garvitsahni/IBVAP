@@ -48,6 +48,10 @@ class AlertPipeline:
         self.sse_broadcaster = None
         self.enrichment_service = enrichment_service
 
+        # Load ROIs from DB if available
+        if self.db is not None:
+            self.rule_engine.load_rois_from_db(self.db)
+
     def set_sse_broadcaster(self, broadcaster) -> None:
         """Inject SSE broadcaster for live alert delivery (called later when available)."""
         self.sse_broadcaster = broadcaster

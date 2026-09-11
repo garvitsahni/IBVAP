@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1000" viewBox="0 0 1400 1000" font-family="Inter, Segoe UI, Arial, sans-serif">
+<defs>
+<marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#0F172A"/></marker>
+<marker id="arb" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#0EA5E9"/></marker>
+</defs>
+<rect width="1400" height="1000" rx="16" fill="#FFFFFF"/>
+<rect x="1" y="1" width="1398" height="998" rx="16" fill="none" stroke="#CBD5E1" stroke-width="2"/>
+<text x="40" y="48" font-size="28" font-weight="800" fill="#0F172A">IBVAP — Workflow Block Diagram</text>
+<text x="40" y="72" font-size="13.5" fill="#64748B">Standard shapes: ▭ process ◆ decision ⬔ store ⟡ terminator • Contracts per ARCHITECTURE.md §5 • Deterministic path solid, async dashed</text>
+
+<!-- Lanes -->
+<rect x="20" y="86" width="450" height="894" rx="12" fill="#F8FAFC" stroke="#8B5CF6" stroke-width="2"/>
+<rect x="480" y="86" width="520" height="894" rx="12" fill="#F8FAFC" stroke="#10B981" stroke-width="2"/>
+<rect x="1010" y="86" width="370" height="894" rx="12" fill="#FFFBEB" stroke="#F59E0B" stroke-width="2"/>
+<text x="245" y="110" font-size="14" font-weight="800" fill="#7C3AED" text-anchor="middle">EDGE NODE (per camera)</text>
+<text x="740" y="110" font-size="14" font-weight="800" fill="#059669" text-anchor="middle">BOP FUSION SERVER</text>
+<text x="1195" y="110" font-size="14" font-weight="800" fill="#D97706" text-anchor="middle">STORES + INTERFACES</text>
+
+<!-- EDGE -->
+<g font-size="12">
+<ellipse cx="245" cy="148" rx="110" ry="24" fill="#0EA5E9" stroke="#0284C7" stroke-width="2"/>
+<text x="245" y="152" font-size="12" font-weight="700" fill="#FFF" text-anchor="middle">RTSP Camera 1..N</text>
+<rect x="85" y="182" width="320" height="44" rx="8" fill="#FFF" stroke="#0F172A" stroke-width="1.5"/>
+<text x="245" y="200" font-weight="700" fill="#0F172A" text-anchor="middle">Ingest + frame grab</text>
+<text x="245" y="216" font-size="11" fill="#64748B" text-anchor="middle">mediamtx sim / real IP cam</text>
+<polygon points="245,236 355,281 245,326 135,281" fill="#FEF3C7" stroke="#F59E0B" stroke-width="1.8"/>
+<text x="245" y="277" font-weight="700" fill="#92400E" text-anchor="middle">Night / weather?</text>
+<text x="245" y="293" font-size="11" fill="#92400E" text-anchor="middle">brightness + visibility est.</text>
+<rect x="85" y="336" width="320" height="52" rx="8" fill="#FFF" stroke="#0F172A" stroke-width="1.5"/>
+<text x="245" y="356" font-weight="700" fill="#0F172A" text-anchor="middle">Detect — YOLOv8n</text>
+<text x="245" y="373" font-size="11" fill="#64748B" text-anchor="middle">bbox + confidence</text>
+<rect x="85" y="396" width="320" height="52" rx="8" fill="#FFF" stroke="#0F172A" stroke-width="1.5"/>
+<text x="245" y="416" font-weight="700" fill="#0F172A" text-anchor="middle">Track — ByteTrack</text>
+<text x="245" y="433" font-size="11" fill="#64748B" text-anchor="middle">per-camera track_id</text>
+<rect x="85" y="456" width="320" height="52" rx="8" fill="#FFF" stroke="#0F172A" stroke-width="1.5"/>
+<text x="245" y="476" font-weight="700" fill="#0F172A" text-anchor="middle">Re-ID embed — OSNet</text>
+<text x="245" y="493" font-size="11" fill="#64748B" text-anchor="middle">person / vehicle vector</text>
+<rect x="85" y="516" width="320" height="62" rx="8" fill="#7C3AED" stroke="#6D28D9" stroke-width="1.5"/>
+<text x="245" y="536" font-weight="700" fill="#FFF" text-anchor="middle">Pack DetectionEvent</text>
+<text x="245" y="553" font-size="10.5" fill="#DDD6FE" text-anchor="middle">camera_id • ts • bbox • track_id • embedding</text>
+<text x="245" y="567" font-size="10.5" fill="#DDD6FE" text-anchor="middle">object_type • confidence</text>
+<rect x="85" y="588" width="320" height="44" rx="8" fill="#FFF" stroke="#DC2626" stroke-width="1.8" stroke-dasharray="6 4"/>
+<text x="245" y="606" font-weight="800" fill="#DC2626" text-anchor="middle">✕ raw video BLOCKED</text>
+<text x="245" y="622" font-size="11" fill="#DC2626" text-anchor="middle">events + embeddings + clips only</text>
+<rect x="95" y="648" width="300" height="58" rx="8" fill="#F1F5F9" stroke="#64748B" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="245" y="667" font-size="11" font-weight="700" fill="#475569" text-anchor="middle">‖ parallel: health / tamper</text>
+<text x="245" y="683" font-size="11" fill="#64748B" text-anchor="middle">frame-diff • dark / blur / frozen → alert</text>
+<!-- arrows edge -->
+<line x1="245" y1="172" x2="245" y2="182" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="245" y1="326" x2="245" y2="336" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="245" y1="388" x2="245" y2="396" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="245" y1="448" x2="245" y2="456" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="245" y1="508" x2="245" y2="516" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+</g>
+
+<!-- Cross-boundary -->
+<g>
+<line x1="405" y1="547" x2="500" y2="547" stroke="#0EA5E9" stroke-width="3" marker-end="url(#arb)"/>
+<text x="452" y="535" font-size="11" font-weight="700" fill="#0284C7" text-anchor="middle">DetectionEvent</text>
+</g>
+
+<!-- FUSION -->
+<g font-size="12">
+<rect x="530" y="130" width="420" height="44" rx="8" fill="#FFF" stroke="#0F172A" stroke-width="1.5"/>
+<text x="740" y="149" font-weight="700" fill="#0F172A" text-anchor="middle">Consume event + validate contract</text>
+<text x="740" y="165" font-size="11" fill="#64748B" text-anchor="middle">drop / tag low-conf in poor visibility</text>
+<rect x="530" y="182" width="420" height="56" rx="8" fill="#FFF" stroke="#0F172A" stroke-width="1.5"/>
+<text x="740" y="202" font-weight="700" fill="#0F172A" text-anchor="middle">Re-ID match — cosine similarity</text>
+<text x="740" y="219" font-size="11" fill="#64748B" text-anchor="middle">rolling embedding index → object_id</text>
+<rect x="530" y="246" width="420" height="56" rx="8" fill="#FFF" stroke="#0F172A" stroke-width="1.5"/>
+<text x="740" y="266" font-weight="700" fill="#0F172A" text-anchor="middle">Footprint builder</text>
+<text x="740" y="283" font-size="11" fill="#64748B" text-anchor="middle">first_seen → hop → last_seen + hash</text>
+<polygon points="740,310 860,360 740,410 620,360" fill="#FEF3C7" stroke="#F59E0B" stroke-width="1.8"/>
+<text x="740" y="356" font-weight="800" fill="#92400E" text-anchor="middle">ROI violation?</text>
+<text x="740" y="373" font-size="11" fill="#92400E" text-anchor="middle">polygon vs centroid • geometry only</text>
+<text x="620" y="348" font-size="11" font-weight="700" fill="#64748B" text-anchor="middle">NO ↓ log only</text>
+<text x="868" y="348" font-size="11" font-weight="700" fill="#DC2626" text-anchor="middle">YES →</text>
+<rect x="530" y="420" width="420" height="54" rx="8" fill="#DC2626" stroke="#991B1B" stroke-width="1.5"/>
+<text x="740" y="441" font-weight="800" fill="#FFF" text-anchor="middle">FIRE Alert — status=fired ⚡</text>
+<text x="740" y="458" font-size="11" fill="#FECACA" text-anchor="middle">reason • camera • object • threat_score</text>
+<rect x="530" y="482" width="420" height="56" rx="8" fill="#0F172A" stroke="#0F172A" stroke-width="1.5"/>
+<text x="740" y="502" font-weight="800" fill="#FFF" text-anchor="middle">Ledger write — SYNC + BLOCKING ⛓</text>
+<text x="740" y="519" font-size="11" fill="#94A3B8" text-anchor="middle">hash(entry + prev_hash) must complete</text>
+<rect x="530" y="546" width="420" height="50" rx="8" fill="#FFF" stroke="#0F172A" stroke-width="1.5"/>
+<text x="740" y="566" font-weight="700" fill="#0F172A" text-anchor="middle">Threat score (deterministic)</text>
+<text x="740" y="582" font-size="11" fill="#64748B" text-anchor="middle">time-of-day + ROI history + trajectory conf</text>
+<rect x="530" y="604" width="420" height="44" rx="22" fill="#0EA5E9" stroke="#0284C7" stroke-width="1.5"/>
+<text x="740" y="630" font-weight="800" fill="#FFF" text-anchor="middle">Broadcast to dashboard / patrol →</text>
+<rect x="530" y="660" width="420" height="60" rx="8" fill="#FFF" stroke="#64748B" stroke-width="1.4" stroke-dasharray="6 4"/>
+<text x="740" y="680" font-weight="700" fill="#334155" text-anchor="middle">async: clip renderer (overlay bbox+ROI)</text>
+<text x="740" y="697" font-size="11" fill="#64748B" text-anchor="middle">does NOT block alert • → object store</text>
+<rect x="530" y="728" width="420" height="60" rx="8" fill="#FFF" stroke="#64748B" stroke-width="1.4" stroke-dasharray="6 4"/>
+<text x="740" y="748" font-weight="700" fill="#334155" text-anchor="middle">async: AI enrichment (local LLM/VLM)</text>
+<text x="740" y="765" font-size="11" fill="#64748B" text-anchor="middle">explanation + projection → status=enriched</text>
+<rect x="540" y="800" width="400" height="48" rx="8" fill="#F1F5F9" stroke="#64748B" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="740" y="819" font-size="11" font-weight="700" fill="#475569" text-anchor="middle">‖ watchlist matcher (local encrypted)</text>
+<text x="740" y="835" font-size="11" fill="#64748B" text-anchor="middle">face / plate embeddings at detect time</text>
+<!-- fusion arrows -->
+<line x1="740" y1="174" x2="740" y2="182" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="740" y1="238" x2="740" y2="246" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="620" y1="360" x2="620" y2="420" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3"/>
+<line x1="860" y1="360" x2="950" y2="360" stroke="#DC2626" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="950" y1="360" x2="950" y2="447" stroke="#DC2626" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="950" y1="447" x2="950" y2="447" stroke="#DC2626" stroke-width="2"/>
+<line x1="740" y1="410" x2="740" y2="420" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="740" y1="474" x2="740" y2="482" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="740" y1="538" x2="740" y2="546" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="740" y1="596" x2="740" y2="604" stroke="#0F172A" stroke-width="2" marker-end="url(#ar)"/>
+</g>
+
+<!-- STORES + IF -->
+<g font-size="12">
+<rect x="1030" y="130" width="330" height="44" rx="8" fill="#0F172A" stroke="#0F172A"/>
+<text x="1195" y="157" font-weight="800" fill="#FFF" text-anchor="middle">FastAPI (LAN only)</text>
+<path d="M1040 190 h80 v40 h-80 z M1040 200 h80 M1040 210 h80 M1040 220 h80" fill="#E0F2FE" stroke="#0284C7" stroke-width="1.5"/>
+<text x="1140" y="206" font-weight="700" fill="#0F172A">PostgreSQL</text>
+<text x="1140" y="222" font-size="11" fill="#64748B">Alerts • Footprint • Watchlist meta</text>
+<path d="M1040 248 h80 v40 h-80 z M1040 258 h80 M1040 268 h80 M1040 278 h80" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+<text x="1140" y="264" font-weight="700" fill="#0F172A">Object store</text>
+<text x="1140" y="280" font-size="11" fill="#64748B">clips + reference frames (MinIO/fs)</text>
+<rect x="1030" y="300" width="330" height="54" rx="8" fill="#FFF" stroke="#0F172A" stroke-width="1.5"/>
+<text x="1195" y="320" font-weight="700" fill="#0F172A" text-anchor="middle">⛓ Ledger chain visual</text>
+<text x="1195" y="337" font-size="11" fill="#64748B" text-anchor="middle">verify walk • break = tamper flag</text>
+<rect x="1030" y="370" width="330" height="76" rx="8" fill="#FFF" stroke="#D97706" stroke-width="1.8"/>
+<text x="1195" y="394" font-size="13" font-weight="800" fill="#0F172A" text-anchor="middle">Command Dashboard</text>
+<text x="1195" y="412" font-size="11" fill="#64748B" text-anchor="middle">live • alert queue • footprint • blind-spot</text>
+<text x="1195" y="428" font-size="11" fill="#64748B" text-anchor="middle">ROI config • ledger status</text>
+<rect x="1030" y="454" width="330" height="66" rx="8" fill="#FFF" stroke="#D97706" stroke-width="1.5"/>
+<text x="1195" y="477" font-size="13" font-weight="800" fill="#0F172A" text-anchor="middle">Patrol App (thin)</text>
+<text x="1195" y="495" font-size="11" fill="#64748B" text-anchor="middle">same API • LAN-only • no cloud</text>
+<rect x="1030" y="528" width="330" height="52" rx="8" fill="#F1F5F9" stroke="#94A3B8" stroke-dasharray="5 4"/>
+<text x="1195" y="547" font-weight="700" fill="#475569" text-anchor="middle">HQ — summaries only (opt)</text>
+<text x="1195" y="563" font-size="11" fill="#64748B" text-anchor="middle">one-way • never required</text>
+<rect x="1030" y="600" width="330" height="150" rx="8" fill="#0F172A" stroke="#0F172A"/>
+<text x="1195" y="624" font-size="11" font-weight="800" fill="#38BDF8" text-anchor="middle">ALERT LIFECYCLE (two-speed)</text>
+<text x="1195" y="644" font-size="11" font-weight="700" fill="#FFF" text-anchor="middle">1. fired ⚡ → visible NOW</text>
+<text x="1195" y="662" font-size="11" fill="#E2E8F0" text-anchor="middle">2. ledger SYNC hash-chain</text>
+<text x="1195" y="680" font-size="11" fill="#94A3B8" text-anchor="middle">3. clip async overlay</text>
+<text x="1195" y="698" font-size="11" fill="#94A3B8" text-anchor="middle">4. enriched AI async</text>
+<text x="1195" y="718" font-size="10.5" fill="#F59E0B" text-anchor="middle">AI never blocks delivery</text>
+<rect x="1030" y="760" width="330" height="200" rx="8" fill="#FFF" stroke="#CBD5E1"/>
+<text x="1195" y="782" font-size="11" font-weight="800" fill="#0F172A" text-anchor="middle">CONTRACTS (frozen §5)</text>
+<text x="1045" y="802" font-size="10.5" font-family="monospace" fill="#334155">DetectionEvent: cam,ts,bbox</text>
+<text x="1045" y="818" font-size="10.5" font-family="monospace" fill="#334155">track_id,embed,conf,obj</text>
+<text x="1045" y="838" font-size="10.5" font-family="monospace" fill="#334155">Footprint: obj,cam,ts,type</text>
+<text x="1045" y="854" font-size="10.5" font-family="monospace" fill="#334155">hash,prev_hash</text>
+<text x="1045" y="874" font-size="10.5" font-family="monospace" fill="#334155">Alert: id,obj,cam,ts,reason</text>
+<text x="1045" y="890" font-size="10.5" font-family="monospace" fill="#334155">status,score,clip,ai_exp</text>
+<text x="1045" y="910" font-size="10.5" font-family="monospace" fill="#334155">traj_proj</text>
+</g>
+<line x1="950" y1="627" x2="1030" y2="627" stroke="#0F172A" stroke-width="2.5" marker-end="url(#ar)"/>
+<text x="990" y="615" font-size="11" font-weight="700" fill="#0F172A" text-anchor="middle">Alert</text>
+<line x1="820" y1="274" x2="1030" y2="210" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+<line x1="820" y1="690" x2="1030" y2="268" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+</svg>

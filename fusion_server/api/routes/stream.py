@@ -4,18 +4,9 @@ from fastapi.responses import StreamingResponse
 import asyncio
 import json
 
+from fusion_server.services.broadcaster import get_broadcaster
+
 router = APIRouter(tags=["stream"])
-
-# Global broadcaster instance
-_broadcaster = None
-
-
-def get_broadcaster():
-    global _broadcaster
-    if _broadcaster is None:
-        from fusion_server.services.sse_broadcaster import SSEBroadcaster
-        _broadcaster = SSEBroadcaster()
-    return _broadcaster
 
 
 @router.get("/api/v1/alerts/stream")

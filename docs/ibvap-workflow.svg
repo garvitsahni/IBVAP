@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Inter, Segoe UI, Arial, sans-serif">
+  <!-- Background -->
+  <rect width="1280" height="720" rx="16" fill="#FFFFFF"/>
+  <rect x="0" y="0" width="1280" height="720" rx="16" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+
+  <!-- Title -->
+  <text x="64" y="62" font-size="32" font-weight="800" fill="#0F172A">IBVAP — End-to-End Workflow</text>
+  <text x="64" y="90" font-size="15" fill="#64748B">Sovereign edge-native surveillance mesh • Nothing leaves the BOP • Deterministic alerts, AI enriches after</text>
+
+  <!-- BOP boundary -->
+  <rect x="40" y="110" width="1200" height="460" rx="16" fill="#F8FAFC" stroke="#0EA5E9" stroke-width="2" stroke-dasharray="10 6"/>
+  <text x="60" y="135" font-size="13" font-weight="700" fill="#0284C7" letter-spacing="1">BOP PERIMETER — LAN ONLY</text>
+
+  <!-- Stage 1: Cameras -->
+  <g>
+    <rect x="64" y="155" width="200" height="360" rx="12" fill="#FFFFFF" stroke="#0EA5E9" stroke-width="2"/>
+    <rect x="64" y="155" width="200" height="48" rx="12" fill="#0EA5E9"/>
+    <rect x="64" y="180" width="200" height="23" fill="#0EA5E9"/>
+    <text x="164" y="185" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">1. CAMERAS</text>
+    <g font-size="13" font-weight="600" fill="#0F172A" text-anchor="middle">
+      <rect x="84" y="220" width="160" height="52" rx="8" fill="#E0F2FE" stroke="#0EA5E9"/>
+      <text x="164" y="241">Camera 1</text>
+      <text x="164" y="258" font-size="11" font-weight="400" fill="#475569">RTSP stream</text>
+      <rect x="84" y="282" width="160" height="52" rx="8" fill="#E0F2FE" stroke="#0EA5E9"/>
+      <text x="164" y="303">Camera 2</text>
+      <text x="164" y="320" font-size="11" font-weight="400" fill="#475569">RTSP stream</text>
+      <rect x="84" y="344" width="160" height="52" rx="8" fill="#E0F2FE" stroke="#0EA5E9"/>
+      <text x="164" y="365">Camera 3 ...</text>
+      <text x="164" y="382" font-size="11" font-weight="400" fill="#475569">RTSP stream</text>
+    </g>
+    <text x="164" y="440" font-size="12" fill="#64748B" text-anchor="middle">Real / mediamtx sim</text>
+    <text x="164" y="495" font-size="12" font-weight="700" fill="#64748B" text-anchor="middle">↓</text>
+  </g>
+
+  <!-- Arrow 1-2 -->
+  <g>
+    <rect x="274" y="300" width="66" height="44" rx="8" fill="#0F172A"/>
+    <text x="307" y="328" font-size="20" font-weight="800" fill="#FFF" text-anchor="middle">→</text>
+  </g>
+
+  <!-- Stage 2: Edge -->
+  <g>
+    <rect x="350" y="155" width="250" height="360" rx="12" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+    <rect x="350" y="155" width="250" height="48" rx="12" fill="#8B5CF6"/>
+    <rect x="350" y="180" width="250" height="23" fill="#8B5CF6"/>
+    <text x="475" y="185" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">2. EDGE NODE</text>
+    <g font-size="12.5" fill="#1E293B">
+      <text x="370" y="230">◉ RTSP ingestion</text>
+      <text x="370" y="256">◉ Detection — YOLOv8n</text>
+      <text x="370" y="282">◉ Tracking — ByteTrack</text>
+      <text x="370" y="308">◉ Re-ID embedding (OSNet)</text>
+      <text x="370" y="334">◉ Night / weather branch</text>
+      <text x="370" y="360">◉ Health / tamper check</text>
+    </g>
+    <rect x="366" y="380" width="218" height="56" rx="8" fill="#FEF3C7" stroke="#F59E0B"/>
+    <text x="475" y="400" font-size="11" font-weight="700" fill="#92400E" text-anchor="middle">OUTPUT CONTRACT</text>
+    <text x="475" y="418" font-size="11" fill="#92400E" text-anchor="middle">events + embeddings + clips</text>
+    <text x="475" y="468" font-size="11" font-weight="700" fill="#DC2626" text-anchor="middle">✕ NO raw video crosses</text>
+  </g>
+
+  <!-- Arrow 2-3 -->
+  <g>
+    <rect x="610" y="300" width="66" height="44" rx="8" fill="#0F172A"/>
+    <text x="643" y="328" font-size="20" font-weight="800" fill="#FFF" text-anchor="middle">→</text>
+    <text x="643" y="290" font-size="10" fill="#475569" text-anchor="middle">Event JSON</text>
+  </g>
+
+  <!-- Stage 3: Fusion -->
+  <g>
+    <rect x="686" y="155" width="280" height="360" rx="12" fill="#FFFFFF" stroke="#10B981" stroke-width="2"/>
+    <rect x="686" y="155" width="280" height="48" rx="12" fill="#10B981"/>
+    <rect x="686" y="180" width="280" height="23" fill="#10B981"/>
+    <text x="826" y="185" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">3. FUSION SERVER</text>
+    <g font-size="12.5" fill="#1E293B">
+      <text x="706" y="230">◉ Re-ID matching (cosine)</text>
+      <text x="706" y="256">◉ Footprint chain builder</text>
+      <text x="706" y="282">◉ Rule engine — ROI geometry ⚡</text>
+      <text x="706" y="308">◉ Threat scoring (deterministic)</text>
+      <text x="706" y="334">◉ Ledger hash-chain [SYNC]</text>
+      <text x="706" y="360">◉ Watchlist (local encrypted)</text>
+      <text x="706" y="386">◉ AI enrichment [ASYNC]</text>
+    </g>
+    <rect x="702" y="402" width="248" height="56" rx="8" fill="#ECFDF5" stroke="#10B981"/>
+    <text x="826" y="422" font-size="11" font-weight="700" fill="#065F46" text-anchor="middle">PostgreSQL + local clips</text>
+    <text x="826" y="440" font-size="11" fill="#065F46" text-anchor="middle">FastAPI • MinIO / filesystem</text>
+    <text x="826" y="495" font-size="12" font-weight="700" fill="#64748B" text-anchor="middle">↓</text>
+  </g>
+
+  <!-- Arrow 3-4 -->
+  <g>
+    <rect x="976" y="300" width="56" height="44" rx="8" fill="#0F172A"/>
+    <text x="1004" y="328" font-size="20" font-weight="800" fill="#FFF" text-anchor="middle">→</text>
+    <text x="1004" y="292" font-size="10" fill="#475569" text-anchor="middle">Alert JSON</text>
+  </g>
+
+  <!-- Stage 4: Interfaces -->
+  <g>
+    <rect x="1042" y="155" width="174" height="360" rx="12" fill="#FFFFFF" stroke="#F59E0B" stroke-width="2"/>
+    <rect x="1042" y="155" width="174" height="48" rx="12" fill="#F59E0B"/>
+    <rect x="1042" y="180" width="174" height="23" fill="#F59E0B"/>
+    <text x="1129" y="185" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">4. USE</text>
+    <rect x="1056" y="220" width="146" height="80" rx="8" fill="#FFFBEB" stroke="#F59E0B"/>
+    <text x="1129" y="244" font-size="12" font-weight="700" fill="#0F172A" text-anchor="middle">Command</text>
+    <text x="1129" y="261" font-size="12" font-weight="700" fill="#0F172A" text-anchor="middle">Dashboard</text>
+    <text x="1129" y="280" font-size="11" fill="#64748B" text-anchor="middle">alerts • map • ledger</text>
+    <rect x="1056" y="312" width="146" height="80" rx="8" fill="#FFFBEB" stroke="#F59E0B"/>
+    <text x="1129" y="336" font-size="12" font-weight="700" fill="#0F172A" text-anchor="middle">Patrol App</text>
+    <text x="1129" y="355" font-size="11" fill="#64748B" text-anchor="middle">LAN-only • thin</text>
+    <text x="1129" y="372" font-size="11" fill="#64748B" text-anchor="middle">same API</text>
+    <rect x="1056" y="408" width="146" height="52" rx="8" fill="#F1F5F9" stroke="#94A3B8" stroke-dasharray="5 4"/>
+    <text x="1129" y="428" font-size="11" font-weight="700" fill="#475569" text-anchor="middle">HQ (optional)</text>
+    <text x="1129" y="444" font-size="10" fill="#64748B" text-anchor="middle">summaries only</text>
+  </g>
+
+  <!-- Bottom: Alert lifecycle strip -->
+  <rect x="40" y="585" width="1200" height="95" rx="12" fill="#0F172A"/>
+  <text x="64" y="610" font-size="13" font-weight="800" fill="#38BDF8" letter-spacing="0.5">TWO-SPEED ALERT LIFECYCLE →</text>
+  <g font-size="12.5" font-weight="600" fill="#FFFFFF" text-anchor="middle">
+    <rect x="64" y="622" width="170" height="36" rx="18" fill="#DC2626"/>
+    <text x="149" y="644" fill="#FFF">1. FIRED ⚡ instant</text>
+    <rect x="248" y="622" width="210" height="36" rx="18" fill="none" stroke="#475569"/>
+    <text x="353" y="644" fill="#E2E8F0">2. LEDGER sync + hash</text>
+    <rect x="472" y="622" width="200" height="36" rx="18" fill="none" stroke="#475569"/>
+    <text x="572" y="644" fill="#E2E8F0">3. CLIP async overlay</text>
+    <rect x="686" y="622" width="220" height="36" rx="18" fill="none" stroke="#475569"/>
+    <text x="796" y="644" fill="#E2E8F0">4. ENRICHED AI async</text>
+  </g>
+  <text x="1216" y="644" font-size="11" fill="#94A3B8" text-anchor="end">Rule decides • AI explains • Dashboard never waits</text>
+</svg>

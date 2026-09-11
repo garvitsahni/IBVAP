@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Inter, Segoe UI, Arial, sans-serif">
+<rect width="1280" height="720" fill="#FFFFFF"/>
+<rect x="0" y="0" width="1280" height="96" fill="#0A2A6B"/>
+<text x="40" y="42" font-size="24" font-weight="800" fill="#FFFFFF">IBVAP — Workflow</text>
+<text x="40" y="66" font-size="12" fill="#BFDBFE">Smart India Hackathon • Blue &amp; White • Edge → Fusion • Deterministic alerts</text>
+<rect x="0" y="96" width="1280" height="6" fill="#3B82F6"/>
+<defs><marker id="b" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#0A2A6B"/></marker></defs>
+<g stroke="#0A2A6B" stroke-width="1.7" fill="none" marker-end="url(#b)">
+<line x1="192" y1="190" x2="252" y2="190"/>
+<line x1="432" y1="190" x2="472" y2="190"/>
+<line x1="562" y1="225" x2="562" y2="280"/><line x1="562" y1="280" x2="82" y2="280"/><line x1="82" y1="280" x2="82" y2="345"/>
+<line x1="242" y1="380" x2="272" y2="380"/>
+<line x1="442" y1="380" x2="472" y2="380"/>
+<line x1="642" y1="380" x2="667" y2="380"/>
+<line x1="777" y1="430" x2="777" y2="525"/>
+<line x1="642" y1="560" x2="672" y2="560"/>
+<line x1="842" y1="560" x2="867" y2="560"/>
+<line x1="977" y1="560" x2="1062" y2="560"/>
+<line x1="922" y1="610" x2="922" y2="648"/>
+<line x1="1147" y1="595" x2="1147" y2="640"/>
+</g>
+<g font-size="12" text-anchor="middle">
+<rect x="42" y="160" width="150" height="60" rx="30" fill="#0A2A6B"/>
+<text x="117" y="185" font-weight="700" fill="#FFF">Camera Feed</text><text x="117" y="201" font-size="10.5" font-weight="400" fill="#BFDBFE">RTSP H.264 • 15fps</text>
+<rect x="252" y="155" width="180" height="70" rx="10" fill="#EFF6FF" stroke="#0A2A6B" stroke-width="1.8"/>
+<text x="342" y="180" font-weight="700" fill="#0A2A6B">Detect &amp; Track</text><text x="342" y="196" font-size="10.5" fill="#334155">YOLOv8n + ByteTrack</text><text x="342" y="210" font-size="9.5" fill="#64748B">conf≥0.5 • IoU • track_id</text>
+<rect x="472" y="155" width="180" height="70" rx="10" fill="#EFF6FF" stroke="#0A2A6B" stroke-width="1.8"/>
+<text x="562" y="180" font-weight="700" fill="#0A2A6B">Extract Re-ID</text><text x="562" y="196" font-size="10.5" fill="#334155">Embedding vector</text><text x="562" y="210" font-size="9.5" fill="#64748B">OSNet 512-d • fp16</text>
+<rect x="82" y="345" width="160" height="70" rx="10" fill="#EFF6FF" stroke="#0A2A6B" stroke-width="1.8"/>
+<text x="162" y="370" font-weight="700" fill="#0A2A6B">Match Cameras</text><text x="162" y="386" font-size="10.5" fill="#334155">Cosine similarity</text><text x="162" y="400" font-size="9.5" fill="#64748B">≥0.75 • FAISS 10k</text>
+<rect x="272" y="345" width="170" height="70" rx="10" fill="#EFF6FF" stroke="#0A2A6B" stroke-width="1.8"/>
+<text x="357" y="370" font-weight="700" fill="#0A2A6B">Update Ledger</text><text x="357" y="386" font-size="10.5" fill="#334155">Footprint chain</text><text x="357" y="400" font-size="9.5" fill="#64748B">PG • hash+prev_hash</text>
+<rect x="472" y="345" width="170" height="70" rx="10" fill="#EFF6FF" stroke="#0A2A6B" stroke-width="1.8"/>
+<text x="557" y="370" font-weight="700" fill="#0A2A6B">Evaluate ROI</text><text x="557" y="386" font-size="10.5" fill="#334155">Virtual fence check</text><text x="557" y="400" font-size="9.5" fill="#64748B">polygon vs centroid</text>
+<polygon points="722,330 802,380 722,430 642,380" fill="#DBEAFE" stroke="#1D4ED8" stroke-width="1.8"/>
+<text x="722" y="375" font-weight="700" fill="#0A2A6B">Rule</text><text x="722" y="391" font-weight="700" fill="#0A2A6B">Violated?</text>
+<rect x="472" y="525" width="170" height="70" rx="10" fill="#0A2A6B"/>
+<text x="557" y="550" font-weight="700" fill="#FFF">Fire Alert</text><text x="557" y="566" font-size="10.5" fill="#BFDBFE">Instant, deterministic</text><text x="557" y="580" font-size="9.5" fill="#93C5FD">status=fired • &lt;100ms</text>
+<rect x="672" y="525" width="170" height="70" rx="10" fill="#EFF6FF" stroke="#0A2A6B" stroke-width="1.8"/>
+<text x="757" y="550" font-weight="700" fill="#0A2A6B">Ledger Write</text><text x="757" y="566" font-size="10.5" fill="#334155">Hash-chained, sync</text><text x="757" y="580" font-size="9.5" fill="#64748B">SHA256 • blocking</text>
+<polygon points="922,510 1002,560 922,610 842,560" fill="#DBEAFE" stroke="#1D4ED8" stroke-width="1.8"/>
+<text x="922" y="555" font-weight="700" fill="#0A2A6B">Operator</text><text x="922" y="571" font-weight="700" fill="#0A2A6B">Confirms?</text>
+<rect x="1062" y="525" width="178" height="70" rx="10" fill="#EFF6FF" stroke="#0A2A6B" stroke-width="1.8"/>
+<text x="1151" y="550" font-weight="700" fill="#0A2A6B">AI Enrichment</text><text x="1151" y="566" font-size="10.5" fill="#334155">+ trajectory predict</text><text x="1151" y="580" font-size="9.5" fill="#64748B">local LLM • async</text>
+<rect x="832" y="648" width="180" height="48" rx="24" fill="#FFFFFF" stroke="#0A2A6B" stroke-width="1.5"/>
+<text x="922" y="676" font-weight="600" font-size="11" fill="#0A2A6B">Log: False Positive</text>
+<rect x="1052" y="640" width="198" height="60" rx="24" fill="#0A2A6B"/>
+<text x="1151" y="663" font-weight="700" fill="#FFF">Alert: Dashboard + Patrol</text><text x="1151" y="679" font-size="10.5" font-weight="400" fill="#BFDBFE">WS /alerts • LAN only</text>
+</g>
+<text x="640" y="300" font-size="10" fill="#0A2A6B" text-anchor="middle" font-weight="700">✕ no raw video crosses edge→fusion • events + embeddings only</text>
+</svg>
