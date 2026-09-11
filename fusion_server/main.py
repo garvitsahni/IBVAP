@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fusion_server.db.session import init_db
 from fusion_server.api import events, alerts, footprint, watchlist
-from fusion_server.api.routes import cameras
+from fusion_server.api.routes import cameras, stream
 
 
 @asynccontextmanager
@@ -37,6 +37,13 @@ app.include_router(alerts.router)
 app.include_router(footprint.router)
 app.include_router(watchlist.router)
 app.include_router(cameras.router)
+app.include_router(stream.router)
+
+
+@app.get("/viewer")
+async def viewer():
+    from fastapi.responses import FileResponse
+    return FileResponse("templates/viewer.html")
 
 
 # Health Check Endpoint

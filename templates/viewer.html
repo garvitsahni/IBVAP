@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IBVAP Alert Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+        h1 { color: #00d4ff; margin-bottom: 20px; font-size: 1.5em; }
+        .status { color: #888; margin-bottom: 10px; }
+        .status.connected { color: #00ff88; }
+        .status.disconnected { color: #ff4444; }
+        #alerts { max-height: 80vh; overflow-y: auto; }
+        .alert {
+            border: 1px solid #333; border-radius: 4px; padding: 12px;
+            margin-bottom: 8px; background: #16213e;
+        }
+        .alert.critical { border-color: #ff0000; background: #3d0000; }
+        .alert.high { border-color: #ff6600; background: #3d1f00; }
+        .alert.medium { border-color: #ffcc00; background: #3d3500; }
+        .alert.low { border-color: #00cc00; background: #003d00; }
+        .alert-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .alert-reason { font-weight: bold; text-transform: uppercase; }
+        .alert-score { padding: 2px 8px; border-radius: 3px; font-size: 0.9em; }
+        .alert-meta { font-size: 0.85em; color: #888; }
+        .enriched { font-style: italic; color: #00d4ff; margin-top: 6px; }
+        #no-alerts { color: #666; text-align: center; padding: 40px; }
+    </style>
+</head>
+<body>
+    <h1>IBVAP Alert Viewer</h1>
+    <div class="status disconnected" id="status">Disconnected</div>
+    <div id="alerts">
+        <div id="no-alerts">Waiting for alerts...</div>
+    </div>
+    <script>
+        const statusEl = document.getElementById('status');
+        const alertsEl = document.getElementById('alerts');
+        const noAlertsEl = document.getElementById('no-alerts');
+        let alertCount = 0;
+
+        function connect() {
+            const es = new EventSource('/api/v1/alerts/stream');
+            es.onopen = () => {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'status connected';
+            };
+            es.onerror = () => {
+                statusEl.textContent = 'Disconnected — reconnecting...';
+                statusEl.className = 'status disconnected';
+            };
+            es.addEventListener('alert_fired', (e) => {
+                const data = JSON.parse(e.data);
+                noAlertsEl.style.display = 'none';
+                alertCount++;
+                const level = data.threat_score >= 0.8 ? 'critical' :
+                              data.threat_score >= 0.6 ? 'high' :
+                              data.threat_score >= 0.4 ? 'medium' : 'low';
+                const div = document.createElement('div');
+                div.className = `alert ${level}`;
+                div.id = `alert-${data.alert_id}`;
+                div.innerHTML = `
+                    <div class="alert-header">
+                        <span class="alert-reason">${data.reason}</span>
+                        <span class="alert-score" style="background:${level === 'critical' ? '#ff0000' : level === 'high' ? '#ff6600' : level === 'medium' ? '#ffcc00' : '#00cc00'}; color:#000">
+                            ${(data.threat_score * 100).toFixed(0)}%
+                        </span>
+                    </div>
+                    <div class="alert-meta">
+                        ${data.camera_id} | ${data.object_id} | ${new Date(data.timestamp).toLocaleTimeString()}
+                    </div>
+                `;
+                alertsEl.prepend(div);
+            });
+            es.addEventListener('alert_enriched', (e) => {
+                const data = JSON.parse(e.data);
+                const alertEl = document.getElementById(`alert-${data.alert_id}`);
+                if (alertEl) {
+                    const enriched = document.createElement('div');
+                    enriched.className = 'enriched';
+                    enriched.textContent = `AI: ${data.ai_explanation}`;
+                    alertEl.appendChild(enriched);
+                }
+            });
+        }
+        connect();
+    </script>
+</body>
+</html>
