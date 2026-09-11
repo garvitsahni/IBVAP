@@ -34,6 +34,32 @@ class CameraHealthResponse(BaseModel):
     alert_reason: Optional[str] = None
 
 
+class CameraListItem(BaseModel):
+    camera_id: str
+    name: str
+    fov_polygon: list = []
+    status: str
+    last_seen: str = ""
+    health: dict = {}
+
+
+@router.get("")
+async def list_cameras():
+    """List all known cameras with health status."""
+    all_health = health_store.get_all()
+    cameras = []
+    for camera_id, info in all_health.items():
+        cameras.append(CameraListItem(
+            camera_id=camera_id,
+            name=camera_id,
+            fov_polygon=[],
+            status=info.get("status", "ok"),
+            last_seen=info.get("last_updated", ""),
+            health={"ssim": info.get("ssim", 0), "metric": info.get("metric")},
+        ))
+    return cameras
+
+
 @router.get("/health")
 async def get_camera_health() -> Dict[str, Dict[str, Any]]:
     """Get health status for all cameras."""
@@ -113,3 +139,10 @@ async def update_camera_health(
         alert_fired=alert_fired,
         alert_reason=alert_reason,
     )
+
+
+@router.post("/{camera_id}/heartbeat")
+async def camera_heartbeat(camera_id: str):
+    """Record a heartbeat from an edge worker."""
+    health_store.heartbeat(camera_id)
+    return {"camera_id": camera_id, "status": "ok"}
