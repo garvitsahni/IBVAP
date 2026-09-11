@@ -128,6 +128,19 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
             alert_ledger = AlertLedger()
             alert_ledger.write_alert_with_hash(db, alert)
 
+        # Alert pipeline: rule engine, trajectory, suspicious activity, threat scoring
+        from fusion_server.services.alert_pipeline import AlertPipeline
+        pipeline = AlertPipeline(db=db)
+        pipeline.process({
+            "camera_id": event.camera_id,
+            "object_id": object_id,
+            "object_type": event.object_type,
+            "timestamp": event.timestamp,
+            "track_id": event.track_id,
+            "bbox": event.bbox.model_dump(),
+            "confidence": event.confidence,
+        })
+
     return DetectionEventResponse(
         id=db_event.id,
         camera_id=db_event.camera_id,
