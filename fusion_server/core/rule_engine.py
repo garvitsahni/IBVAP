@@ -107,3 +107,34 @@ class RuleEngine:
     ) -> List[RuleViolation]:
         """Alias for check_roi_intrusion - virtual fence is just an ROI."""
         return self.check_roi_intrusion(object_id, camera_id, timestamp, bbox, object_type, previous_bbox)
+
+    def load_rois_from_db(self, db) -> None:
+        """Load active ROIs from database into the engine."""
+        from fusion_server.db.models_roi import ROI as ROIModel
+        db_rois = db.query(ROIModel).filter(ROIModel.active == True).all()
+        self.rois = []
+        for r in db_rois:
+            self.rois.append(ROI(
+                camera_id=r.camera_id,
+                name=r.name,
+                polygon=r.polygon,
+                alert_on_enter=r.alert_on_enter,
+                alert_on_exit=r.alert_on_exit,
+                object_types=r.object_types,
+            ))
+
+    def evaluate(
+        self,
+        object_id: str,
+        camera_id: str,
+        timestamp: str,
+        bbox: dict,
+        object_type: str,
+        previous_bbox: dict = None,
+    ) -> List[RuleViolation]:
+        """Run all rule checks and return violations."""
+        violations = []
+        violations.extend(self.check_roi_intrusion(
+            object_id, camera_id, timestamp, bbox, object_type, previous_bbox
+        ))
+        return violations
