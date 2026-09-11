@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fusion_server.db.session import init_db
 from fusion_server.api import events, alerts, footprint, watchlist
-from fusion_server.api.routes import cameras, stream
+from fusion_server.api.routes import cameras, stream, rois, plates
 
 
 @asynccontextmanager
@@ -38,6 +38,8 @@ app.include_router(footprint.router)
 app.include_router(watchlist.router)
 app.include_router(cameras.router)
 app.include_router(stream.router)
+app.include_router(rois.router)
+app.include_router(plates.router)
 
 
 @app.get("/viewer")
