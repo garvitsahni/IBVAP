@@ -8,4 +8,8 @@ Task 5: complete (commits ..3933d7a, review clean — bug fixes: heading tuple i
 Task 6: complete (commits ..aacb82d, review clean)
 Task 7: complete (commits ..3770a8a, review clean — 24 tests, full pipeline orchestration)
 Task 8: complete (commits ..322f6e3, review clean — added camera_tamper/drift/blinding/frozen/unauthorized_object violation types)
+Task 9: complete (commits ..7336649, review clean)
+Task 11: complete (commits ..a41c90a, review clean)
+Task 12: complete (commits ..7d41d4f, review clean — lazy-loaded LLaVA, graceful fallback)
 Task 9: complete (commits ..6587e10, review clean — SSE broadcaster with subscribe/unsubscribe/broadcast_alert_fired/broadcast_alert_enriched)
+Task 13: complete (commits ..4c87db6, review clean — AIEnrichmentService + SSEBroadcaster wired into AlertPipeline, fire-and-forget via asyncio.create_task, 16 new tests)
