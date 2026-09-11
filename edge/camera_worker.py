@@ -13,6 +13,7 @@ from edge.night_weather import NightWeatherProcessor
 from edge.tracker import Tracker
 from edge.event_publisher import EventPublisher
 from edge.visualizer import Visualizer
+from edge.camera_health import CameraHealthService
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class CameraWorker:
         display: bool = True,
         force_mode: Optional[str] = None,
         mjpeg_port: int = 8081,
+        health_check_interval: int = 30,
     ):
         self.camera_url = camera_url
         self.camera_id = camera_id
@@ -57,6 +59,11 @@ class CameraWorker:
         self.reid_res_queue = reid_res_queue
         self._frame_id = 0
 
+        self.health_check_interval = health_check_interval
+        self._health_service = CameraHealthService(camera_id)
+        self._prev_frame = None
+        self._frame_count = 0
+
     def _crop_detection(self, frame: np.ndarray, detection: dict) -> np.ndarray:
         """Crop bounding box from frame."""
         x1, y1, x2, y2 = detection["bbox"]
@@ -66,6 +73,45 @@ class CameraWorker:
         x2_int = min(w, int(x2))
         y2_int = min(h, int(y2))
         return frame[y1_int:y2_int, x1_int:x2_int].copy()
+
+    def _check_health(self, frame: np.ndarray):
+        """Run camera health checks and publish status to fusion server."""
+        import requests
+
+        if self._health_service._reference_frame is None:
+            self._health_service.set_reference_frame(frame)
+
+        darkness = self._health_service.check_darkness(frame)
+        blur = self._health_service.check_blur(frame)
+
+        frozen_result = {"status": "ok", "metric": 0.0}
+        if self._prev_frame is not None:
+            frozen_result = self._health_service.check_frozen(self._prev_frame, frame)
+
+        statuses = [darkness["status"], blur["status"], frozen_result["status"]]
+        if "blinding" in statuses:
+            overall = "blinding"
+        elif "obscured" in statuses:
+            overall = "obscured"
+        elif "frozen" in statuses:
+            overall = "frozen"
+        else:
+            overall = "ok"
+
+        try:
+            requests.post(
+                f"{self.publisher.fusion_url}/api/v1/cameras/{self.camera_id}/health",
+                json={
+                    "status": overall,
+                    "ssim": 0.0,
+                    "metric": darkness["metric"],
+                },
+                timeout=1.0,
+            )
+        except Exception as e:
+            logger.debug(f"Health publish failed: {e}")
+
+        self._prev_frame = frame.copy()
 
     def run(self):
         logger.info(f"Camera worker {self.camera_id} starting ({self.camera_url})")
@@ -146,6 +192,10 @@ class CameraWorker:
             if not self.visualizer.render(frame, tracks, mode_info):
                 logger.info(f"Camera {self.camera_id}: Quit signal received")
                 break
+
+            self._frame_count += 1
+            if self._frame_count % self.health_check_interval == 0:
+                self._check_health(processed_frame)
 
             elapsed = time.time() - loop_start
             sleep_time = frame_interval - elapsed
