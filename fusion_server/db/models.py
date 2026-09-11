@@ -55,7 +55,7 @@ class FootprintEntry(Base):
         Index('idx_footprint_object_time', 'object_id', 'timestamp'),
         Index('idx_footprint_hash', 'hash'),
         Index('idx_footprint_prev_hash', 'previous_hash'),
-        CheckConstraint("event_type IN ('first_seen', 'hop', 'alert', 'last_seen', 'camera_compromised')", name='ck_footprint_event_type'),
+        CheckConstraint("event_type IN ('first_seen', 'hop', 'alert', 'last_seen', 'camera_compromised', 'roi_intrusion', 'suspicious_activity')", name='ck_footprint_event_type'),
     )
 
 
