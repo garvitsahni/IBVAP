@@ -78,3 +78,30 @@ class CameraHealthService:
         ))
         scene_drift = similarity < self.scene_drift_threshold
         return {"scene_drift": scene_drift, "similarity": round(similarity, 4)}
+
+    def check_darkness(self, frame: np.ndarray) -> Dict:
+        """Detect full-frame darkness (blinding). Returns mean pixel intensity."""
+        if len(frame.shape) == 3:
+            gray = np.mean(frame, axis=2)
+        else:
+            gray = frame.astype(float)
+        mean_intensity = float(np.mean(gray))
+        status = "blinding" if mean_intensity < 15 else "ok"
+        return {"status": status, "metric": round(mean_intensity, 2)}
+
+    def check_blur(self, frame: np.ndarray) -> Dict:
+        """Detect blur/obscuration via Laplacian variance."""
+        import cv2
+        if len(frame.shape) == 3:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = frame
+        laplacian_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        status = "obscured" if laplacian_var < 50 else "ok"
+        return {"status": status, "metric": round(laplacian_var, 2)}
+
+    def check_frozen(self, prev_frame: np.ndarray, curr_frame: np.ndarray) -> Dict:
+        """Detect frozen frame via mean absolute difference."""
+        diff = float(np.mean(np.abs(prev_frame.astype(float) - curr_frame.astype(float))))
+        status = "frozen" if diff < 1.0 else "ok"
+        return {"status": status, "metric": round(diff, 2)}
