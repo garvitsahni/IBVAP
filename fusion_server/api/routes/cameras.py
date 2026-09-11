@@ -59,8 +59,38 @@ async def update_camera_health(
     if request.status != "ok":
         from fusion_server.db.models import Alert
         from fusion_server.core.alert_ledger import AlertLedger
+        from fusion_server.core.threat_scoring import calculate_threat_score, ThreatContext
+        from fusion_server.core.rule_engine import RuleViolation
 
         alert_reason = f"camera_{request.status}"
+        
+        # Map camera status to violation type
+        violation_type_map = {
+            "blinding": "camera_blinding",
+            "obscured": "camera_tamper",
+            "frozen": "camera_frozen",
+            "tamper": "camera_tamper",
+            "drift": "camera_drift",
+        }
+        violation_type = violation_type_map.get(request.status, "camera_tamper")
+        
+        violation = RuleViolation(
+            object_id=f"camera_{camera_id}",
+            camera_id=camera_id,
+            timestamp=datetime.utcnow().isoformat(),
+            roi_name="N/A",
+            violation_type=violation_type,
+            threat_score=0.0,  # Will be calculated
+        )
+        
+        threat_context = ThreatContext(
+            object_type="vehicle",  # Camera is infrastructure, use vehicle as default
+            time_of_day="day",  # Default; could be extracted from timestamp
+            camera_zone="perimeter",  # Default; could be looked up from camera config
+        )
+        
+        score = calculate_threat_score([violation], threat_context)
+        
         alert = Alert(
             alert_id=str(uuid.uuid4()),
             object_id=f"camera_{camera_id}",
@@ -68,7 +98,7 @@ async def update_camera_health(
             timestamp=datetime.utcnow(),
             reason=alert_reason,
             status="fired",
-            threat_score=0.8,
+            threat_score=score,
         )
         db.add(alert)
         alert_ledger = AlertLedger()

@@ -28,6 +28,11 @@ VIOLATION_BASE_SCORES = {
     "virtual_fence_crossing": 0.7,
     "suspicious_activity": 0.6,
     "loitering": 0.5,
+    "camera_tamper": 0.9,
+    "camera_drift": 0.7,
+    "camera_blinding": 0.8,
+    "camera_frozen": 0.7,
+    "unauthorized_object": 0.6,
 }
 
 # Multipliers (deterministic)
@@ -47,6 +52,10 @@ def calculate_threat_score(
     Pure function - same inputs always produce same output.
     NO ML, NO randomness, NO hidden state.
     """
+    # Watchlist match is maximum threat — applies even without violations
+    if context.is_watchlist_match:
+        return 0.9
+
     if not violations:
         return 0.0
 
@@ -62,10 +71,6 @@ def calculate_threat_score(
     # Escalation for repeat violations
     if context.previous_violations > 0:
         score *= 1.0 + (0.1 * min(context.previous_violations, 5))
-
-    # Watchlist match is maximum threat
-    if context.is_watchlist_match:
-        score = max(score, 0.9)
 
     # Cap at 1.0
     return min(score, 1.0)

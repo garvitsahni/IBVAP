@@ -99,6 +99,7 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
         # Watchlist matching
         from fusion_server.services.watchlist_matcher import WatchlistMatcher
         from fusion_server.core.alert_ledger import AlertLedger
+        from fusion_server.core.threat_scoring import calculate_threat_score, ThreatContext
         import uuid
         from fusion_server.db.models import Alert
 
@@ -106,6 +107,13 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
         match = matcher.match_detection(db, embedding_array, event.object_type)
 
         if match is not None:
+            threat_context = ThreatContext(
+                object_type=event.object_type,
+                time_of_day="day",  # Default; could be extracted from timestamp
+                camera_zone="perimeter",  # Default; could be looked up from camera config
+                is_watchlist_match=True,
+            )
+            score = calculate_threat_score([], threat_context)
             alert = Alert(
                 alert_id=str(uuid.uuid4()),
                 object_id=object_id,
@@ -113,7 +121,7 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
                 timestamp=event.timestamp,
                 reason="watchlist_match",
                 status="fired",
-                threat_score=0.9,
+                threat_score=score,
                 ai_explanation=f"Matched watchlist entry '{match['reference_id']}' with similarity {match['similarity']}",
             )
             db.add(alert)
