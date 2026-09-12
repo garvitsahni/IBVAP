@@ -1,7 +1,18 @@
-import CameraTile from './CameraTile';
-import EmptyState from './EmptyState';
+import { CameraTile } from './CameraTile';
+import EmptyState from '../EmptyState';
 
-export default function CameraGrid({ cameras }) {
+interface Camera {
+  id: string;
+  name: string;
+  status: "online" | "offline" | "degraded";
+  lastSeen?: string;
+}
+
+interface CameraGridProps {
+  cameras: Camera[];
+}
+
+export default function CameraGrid({ cameras }: CameraGridProps) {
   if (!cameras?.length) {
     return (
       <div className="rounded-md border border-dashed border-ops-border">

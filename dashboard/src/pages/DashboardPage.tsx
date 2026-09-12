@@ -3,14 +3,14 @@ import { Camera, Video, VideoOff, AlertTriangle } from 'lucide-react';
 import Sidebar from '../components/layout/Sidebar';
 import TopBar from '../components/layout/TopBar';
 import StatCard from '../components/ui/StatCard';
-import CameraGrid from '../components/CameraGrid';
+import CameraGrid from '../components/camera/CameraGrid';
 import AlertFeed from '../components/AlertFeed';
 import AlertDetailPanel from '../components/AlertDetailPanel';
 import ConnectionStatus from '../components/ConnectionStatus';
 import ToastStack from '../components/ToastStack';
 import { CameraGridSkeleton, ListSkeleton } from '../components/Skeletons';
 // TODO: Replace with real hooks and API (Task 10)
-const MOCK_CAMERAS = [] as Array<{ id: string; label: string; status: string; url: string }>;
+const MOCK_CAMERAS = [] as Array<{ id: string; name: string; status: "online" | "offline" | "degraded"; url: string }>;
 const MOCK_ALERTS = [] as Array<{ id: string; type: string; severity: string; cameraId: string; timestamp: number; status: string; description: string }>;
 const useAlertStream = ({ initialAlerts }: { initialAlerts: unknown[] }) => ({
   alerts: initialAlerts,
