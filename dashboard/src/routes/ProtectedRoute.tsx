@@ -1,24 +1,13 @@
-import { Navigate, useLocation } from "react-router-dom";
-import Spinner from "../components/ui/Spinner";
+import { Navigate, useLocation } from "react-router-dom"
+import { useAuth } from "@/context/AuthContext"
 
-// TODO: Replace with real auth context (Task 10)
-const useAuth = () => ({ isAuthenticated: false, loading: false });
-
-export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
-  const location = useLocation();
-
-  if (loading) {
-    return (
-      <div className="auth-shell">
-        <Spinner label="Verifying session" />
-      </div>
-    );
-  }
+export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth()
+  const location = useLocation()
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
-  return children;
+  return <>{children}</>
 }

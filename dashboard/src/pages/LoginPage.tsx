@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, User, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
-// TODO: Replace with real auth context (Task 10)
-const useAuth = () => ({ login: async () => {} });
-const loginBackground = '';
+import { useAuth } from '@/context/AuthContext';
 
 // BorderEye login page — background image on the left + credential card on the right.
 
-export default function LoginPage() {
+export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -19,9 +17,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const redirectTo = location.state?.from?.pathname || '/dashboard';
+  const redirectTo = (location.state as { from?: string })?.from || '/dashboard';
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -36,7 +34,7 @@ export default function LoginPage() {
       await login(officerId.trim(), password);
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(err?.message || 'Officer ID or password is incorrect.');
+      setError((err as Error)?.message || 'Officer ID or password is incorrect.');
     } finally {
       setSubmitting(false);
     }
@@ -48,7 +46,7 @@ export default function LoginPage() {
       <div
         className="relative hidden min-h-screen w-1/2 overflow-hidden bg-cover bg-center bg-no-repeat lg:block"
         style={{
-          backgroundImage: `url(${loginBackground})`,
+          backgroundImage: `url()`,
         }}
         aria-label="BorderEye border surveillance background"
       />

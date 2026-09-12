@@ -1,96 +1,175 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Camera, Video, VideoOff, AlertTriangle } from 'lucide-react';
-import Sidebar from '../components/layout/Sidebar';
-import TopBar from '../components/layout/TopBar';
-import StatCard from '../components/ui/StatCard';
-import CameraGrid from '../components/camera/CameraGrid';
-import AlertFeed from '../components/AlertFeed';
-import AlertDetailPanel from '../components/AlertDetailPanel';
-import ConnectionStatus from '../components/event/ConnectionStatus';
-import ToastStack from '../components/ToastStack';
-import { CameraGridSkeleton, ListSkeleton } from '../components/Skeletons';
-// TODO: Replace with real hooks and API (Task 10)
-const MOCK_CAMERAS = [] as Array<{ id: string; name: string; status: "online" | "offline" | "degraded"; url: string }>;
-const MOCK_ALERTS = [] as Array<{ id: string; type: string; severity: string; cameraId: string; timestamp: number; status: string; description: string }>;
-const useAlertStream = ({ initialAlerts }: { initialAlerts: unknown[] }) => ({
-  alerts: initialAlerts,
-  connectionStatus: 'disconnected',
-  updateAlertStatus: (_id: string, _status: string) => {},
-});
+import { StatCard } from '@/components/ui/StatCard';
+import CameraGrid from '@/components/camera/CameraGrid';
+import { AlertFeed } from '@/components/alert/AlertFeed';
+import { AlertDetailPanel } from '@/components/alert/AlertDetailPanel';
+import ConnectionStatus from '@/components/event/ConnectionStatus';
+import { ToastStack } from '@/components/alert/ToastStack';
+import { SSEClient } from '@/services/sse';
+import { api } from '@/services/api';
+import type { Alert as ApiAlert, Camera as ApiCamera } from '@/types/api';
 
-export default function DashboardPage() {
-  const { alerts, connectionStatus, updateAlertStatus } = useAlertStream({
-    initialAlerts: MOCK_ALERTS,
-    intervalMs: 15000,
-  });
-  const [selectedAlertId, setSelectedAlertId] = useState(null);
-  const [toasts, setToasts] = useState([]);
+interface DashboardAlert {
+  id: string;
+  type: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  cameraId: string;
+  timestamp: string;
+  status: string;
+}
+
+interface DashboardCamera {
+  id: string;
+  name: string;
+  status: 'online' | 'offline' | 'degraded';
+  lastSeen?: string;
+}
+
+function mapSeverity(threatScore: number): DashboardAlert['severity'] {
+  if (threatScore >= 0.8) return 'critical';
+  if (threatScore >= 0.6) return 'high';
+  if (threatScore >= 0.4) return 'medium';
+  if (threatScore >= 0.2) return 'low';
+  return 'info';
+}
+
+function mapApiAlert(raw: ApiAlert): DashboardAlert {
+  return {
+    id: raw.alert_id || String(raw.id),
+    type: raw.reason,
+    severity: mapSeverity(raw.threat_score),
+    cameraId: raw.camera_id,
+    timestamp: raw.timestamp,
+    status: raw.status,
+  };
+}
+
+function mapApiCamera(raw: ApiCamera): DashboardCamera {
+  return {
+    id: raw.camera_id,
+    name: raw.name,
+    status: (raw.is_active ? raw.status : 'offline') as 'online' | 'offline' | 'degraded',
+    lastSeen: raw.last_seen,
+  };
+}
+
+export function DashboardPage() {
+  const [cameras, setCameras] = useState<DashboardCamera[]>([]);
+  const [alerts, setAlerts] = useState<DashboardAlert[]>([]);
+  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<DashboardAlert[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
   const [initialLoading, setInitialLoading] = useState(true);
-  const knownAlertIds = useRef(new Set(MOCK_ALERTS.map((a) => a.id)));
+  const knownAlertIds = useRef(new Set<string>());
 
   useEffect(() => {
-    const timer = setTimeout(() => setInitialLoading(false), 700);
-    return () => clearTimeout(timer);
+    Promise.all([
+      api.getCameras().catch(() => []),
+      api.getAlerts().catch(() => []),
+    ]).then(([rawCameras, rawAlerts]) => {
+      setCameras(rawCameras.map(mapApiCamera));
+      const mapped = rawAlerts.map(mapApiAlert);
+      setAlerts(mapped);
+      mapped.forEach((a) => knownAlertIds.current.add(a.id));
+      setInitialLoading(false);
+    });
   }, []);
 
   useEffect(() => {
-    const fresh = alerts.filter((a) => !knownAlertIds.current.has(a.id));
-    if (fresh.length === 0) return;
-    fresh.forEach((a) => knownAlertIds.current.add(a.id));
-    setToasts((prev) => [...fresh, ...prev].slice(0, 4));
-  }, [alerts]);
+    const client = new SSEClient();
+    client.connect('/api/v1/alerts/stream');
 
-  const dismissToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
+    client.on('alert_fired', (data) => {
+      setConnectionStatus('live');
+      const alert = mapApiAlert(data as unknown as ApiAlert);
+      setAlerts((prev) => [alert, ...prev].slice(0, 50));
+      if (!knownAlertIds.current.has(alert.id)) {
+        knownAlertIds.current.add(alert.id);
+        setToasts((prev) => [alert, ...prev].slice(0, 4));
+      }
+    });
 
-  const onlineCount = MOCK_CAMERAS.filter((c) => c.status === 'online').length;
-  const offlineCount = MOCK_CAMERAS.filter((c) => c.status === 'offline').length;
-  const activeAlertCount = alerts.filter((a) => a.status === 'new').length;
+    client.on('alert_enriched', (data) => {
+      const enriched = data as unknown as ApiAlert;
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === enriched.alert_id
+            ? { ...a, type: enriched.reason || a.type }
+            : a
+        )
+      );
+    });
+
+    setConnectionStatus('live');
+
+    return () => {
+      client.disconnect();
+      setConnectionStatus('disconnected');
+    };
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const onlineCount = cameras.filter((c) => c.status === 'online').length;
+  const offlineCount = cameras.filter((c) => c.status === 'offline').length;
+  const activeAlertCount = alerts.filter((a) => a.status === 'fired').length;
   const selectedAlert = alerts.find((a) => a.id === selectedAlertId) || null;
 
   return (
-    <div className="flex h-screen bg-surface-bg font-sans">
-      <Sidebar badgeCounts={{ alerts: activeAlertCount }} />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar alertCount={activeAlertCount} />
-
-        <main className="flex-1 overflow-y-auto p-5">
-          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard icon={Camera} label="Total Cameras" value={MOCK_CAMERAS.length} tone="primary" />
-            <StatCard icon={Video} label="Online" value={onlineCount} tone="success" />
-            <StatCard icon={VideoOff} label="Offline" value={offlineCount} tone="muted" />
-            <StatCard icon={AlertTriangle} label="Active Alerts" value={activeAlertCount} tone="danger" />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
-            <div className="min-w-0">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-surface-text">Live Camera Feeds</h2>
-                <ConnectionStatus status={connectionStatus} />
-              </div>
-              {initialLoading ? <CameraGridSkeleton /> : <CameraGrid cameras={MOCK_CAMERAS} />}
-            </div>
-
-            <div className="min-h-[320px]">
-              {initialLoading ? (
-                <div className="rounded-lg border border-surface-border bg-white shadow-card">
-                  <ListSkeleton />
-                </div>
-              ) : (
-                <AlertFeed alerts={alerts} onSelectAlert={(a) => setSelectedAlertId(a.id)} />
-              )}
-            </div>
-          </div>
-        </main>
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard icon={Camera} label="Total Cameras" value={cameras.length} tone="primary" />
+        <StatCard icon={Video} label="Online" value={onlineCount} tone="success" />
+        <StatCard icon={VideoOff} label="Offline" value={offlineCount} tone="muted" />
+        <StatCard icon={AlertTriangle} label="Active Alerts" value={activeAlertCount} tone="danger" />
       </div>
 
-      {selectedAlert && (
-        <AlertDetailPanel
-          alert={selectedAlert}
-          onClose={() => setSelectedAlertId(null)}
-          onUpdateStatus={updateAlertStatus}
-        />
-      )}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-text-primary">Live Camera Feeds</h2>
+            <ConnectionStatus status={connectionStatus} />
+          </div>
+          {initialLoading ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="aspect-video animate-pulse rounded-md border border-border bg-surface-2" />
+              ))}
+            </div>
+          ) : (
+            <CameraGrid cameras={cameras} />
+          )}
+        </div>
+
+        <div className="min-h-[320px]">
+          {initialLoading ? (
+            <div className="rounded-lg border border-border bg-surface p-4">
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="animate-pulse space-y-2">
+                    <div className="h-3 w-3/4 rounded bg-surface-2" />
+                    <div className="h-2.5 w-1/3 rounded bg-surface-2" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <AlertFeed
+              alerts={alerts}
+              selectedId={selectedAlertId ?? undefined}
+              onSelect={(a) => setSelectedAlertId(a.id)}
+            />
+          )}
+        </div>
+      </div>
+
+      <AlertDetailPanel
+        alert={selectedAlert}
+        onClose={() => setSelectedAlertId(null)}
+      />
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>

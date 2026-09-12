@@ -3,20 +3,18 @@ import { cn } from '@/lib/utils';
 import {
   ShieldCheck,
   LayoutDashboard,
-  Camera,
   Bell,
   History,
-  BarChart3,
+  Map,
   Settings,
   LogOut,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/cameras', label: 'Cameras', icon: Camera },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/alerts', label: 'Alerts', icon: Bell },
   { to: '/history', label: 'History', icon: History },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/map', label: 'Map', icon: Map },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

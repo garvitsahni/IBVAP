@@ -1,17 +1,27 @@
+import { useEffect, useState } from 'react';
 import { MapPin, Camera, ShieldCheck, Navigation } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polygon, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { api } from '@/services/api';
+import type { Camera as ApiCamera } from '@/types/api';
 
 // Leaflet's default marker assets need explicit URLs when used with Vite.
-delete L.Icon.Default.prototype._getIconUrl;
+delete (L.Icon.Default.prototype as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const CAMERAS = [
+interface MapCamera {
+  id: string;
+  name: string;
+  status: 'Online' | 'Alert' | 'Offline';
+  position: [number, number];
+}
+
+const FALLBACK_CAMERAS: MapCamera[] = [
   { id: 'CAM-01', name: 'North Gate', status: 'Online', position: [28.4595, 77.0266] },
   { id: 'CAM-02', name: 'Watch Tower A', status: 'Online', position: [28.4632, 77.0315] },
   { id: 'CAM-03', name: 'East Fence', status: 'Alert', position: [28.4558, 77.0342] },
@@ -24,9 +34,9 @@ const BORDER_ZONE = [
   [28.466, 77.040],
   [28.446, 77.040],
   [28.446, 77.019],
-];
+] as [number, number][];
 
-function cameraIcon(status) {
+function cameraIcon(status: string) {
   const background =
     status === 'Alert' ? '#dc2626' : status === 'Offline' ? '#64748b' : '#2563eb';
 
@@ -39,41 +49,67 @@ function cameraIcon(status) {
   });
 }
 
-export default function MapView() {
-  const online = CAMERAS.filter((c) => c.status === 'Online').length;
-  const alerts = CAMERAS.filter((c) => c.status === 'Alert').length;
+function mapCamera(raw: ApiCamera): MapCamera {
+  const statusMap: Record<string, MapCamera['status']> = {
+    online: 'Online',
+    degraded: 'Alert',
+    offline: 'Offline',
+  };
+  return {
+    id: raw.camera_id,
+    name: raw.name,
+    status: statusMap[raw.status] || 'Offline',
+    position: [28.4575, 77.028],
+  };
+}
+
+export function MapPage() {
+  const [cameras, setCameras] = useState<MapCamera[]>(FALLBACK_CAMERAS);
+
+  useEffect(() => {
+    api
+      .getCameras()
+      .then((raw) => {
+        const mapped = raw.map(mapCamera);
+        if (mapped.length > 0) setCameras(mapped);
+      })
+      .catch(() => {});
+  }, []);
+
+  const online = cameras.filter((c) => c.status === 'Online').length;
+  const alerts = cameras.filter((c) => c.status === 'Alert').length;
 
   return (
-    <div className="min-h-full bg-surface-bg p-5 text-surface-text">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <MapPin size={20} className="text-brand-primary" />
-            <h1 className="text-xl font-semibold">Map View</h1>
+            <MapPin size={20} className="text-accent" />
+            <h1 className="text-lg font-semibold text-text-primary">Map View</h1>
           </div>
-          <p className="mt-1 text-sm text-surface-muted">
+          <p className="mt-1 text-sm text-text-secondary">
             Monitor camera locations and border surveillance zones.
           </p>
         </div>
 
         <div className="flex gap-2 text-xs">
-          <span className="rounded-lg border border-surface-border bg-white px-3 py-2">
-            <b className="text-brand-primary">{online}</b> Online
+          <span className="rounded-lg border border-border bg-surface px-3 py-2">
+            <b className="text-accent">{online}</b> Online
           </span>
-          <span className="rounded-lg border border-surface-border bg-white px-3 py-2">
+          <span className="rounded-lg border border-border bg-surface px-3 py-2">
             <b className="text-severity-critical">{alerts}</b> Alert
           </span>
         </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_300px]">
-        <div className="overflow-hidden rounded-xl border border-surface-border bg-white shadow-card">
-          <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-card">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
-              <Navigation size={16} className="text-brand-primary" />
+              <Navigation size={16} className="text-accent" />
               Border Surveillance Map
             </div>
-            <span className="text-xs text-surface-muted">Live camera positions</span>
+            <span className="text-xs text-text-muted">Live camera positions</span>
           </div>
 
           <div className="relative min-h-[560px] overflow-hidden">
@@ -99,7 +135,7 @@ export default function MapView() {
                 }}
               />
 
-              {CAMERAS.map((camera) => (
+              {cameras.map((camera) => (
                 <Circle
                   key={`${camera.id}-coverage`}
                   center={camera.position}
@@ -113,7 +149,7 @@ export default function MapView() {
                 />
               ))}
 
-              {CAMERAS.map((camera) => (
+              {cameras.map((camera) => (
                 <Marker key={camera.id} position={camera.position} icon={cameraIcon(camera.status)}>
                   <Popup>
                     <div className="min-w-[170px]">
@@ -141,44 +177,44 @@ export default function MapView() {
 
             <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] rounded-lg bg-white/95 px-3 py-2 text-xs shadow-lg">
               <div className="mb-1 font-semibold">Border Sector A</div>
-              <div className="flex items-center gap-2 text-surface-muted">
+              <div className="flex items-center gap-2 text-text-secondary">
                 <ShieldCheck size={13} /> Secure perimeter
               </div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-surface-border bg-white shadow-card">
-          <div className="border-b border-surface-border px-4 py-3">
-            <h2 className="text-sm font-semibold">Camera Locations</h2>
-            <p className="mt-1 text-xs text-surface-muted">{CAMERAS.length} registered cameras</p>
+        <div className="rounded-xl border border-border bg-surface shadow-card">
+          <div className="border-b border-border px-4 py-3">
+            <h2 className="text-sm font-semibold text-text-primary">Camera Locations</h2>
+            <p className="mt-1 text-xs text-text-secondary">{cameras.length} registered cameras</p>
           </div>
 
-          <div className="divide-y divide-surface-border">
-            {CAMERAS.map((camera) => (
+          <div className="divide-y divide-border">
+            {cameras.map((camera) => (
               <div key={camera.id} className="flex items-center gap-3 px-4 py-3">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-full ${
                     camera.status === 'Alert'
                       ? 'bg-severity-critical/10 text-severity-critical'
                       : camera.status === 'Offline'
-                        ? 'bg-surface-muted/10 text-surface-muted'
-                        : 'bg-brand-primary/10 text-brand-primary'
+                        ? 'bg-surface-2 text-text-muted'
+                        : 'bg-accent/10 text-accent'
                   }`}
                 >
                   <Camera size={15} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{camera.name}</p>
-                  <p className="font-mono text-[11px] text-surface-muted">{camera.id}</p>
+                  <p className="truncate text-sm font-medium text-text-primary">{camera.name}</p>
+                  <p className="font-mono text-[11px] text-text-secondary">{camera.id}</p>
                 </div>
                 <span
                   className={`text-[11px] font-medium ${
                     camera.status === 'Alert'
                       ? 'text-severity-critical'
                       : camera.status === 'Offline'
-                        ? 'text-surface-muted'
-                        : 'text-brand-primary'
+                        ? 'text-text-muted'
+                        : 'text-accent'
                   }`}
                 >
                   {camera.status}
@@ -187,7 +223,7 @@ export default function MapView() {
             ))}
           </div>
 
-          <div className="border-t border-surface-border p-4 text-[11px] text-surface-muted">
+          <div className="border-t border-border p-4 text-[11px] text-text-secondary">
             Map data: OpenStreetMap. Camera locations shown here are demo coordinates for the prototype.
           </div>
         </div>
