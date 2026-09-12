@@ -1,5 +1,5 @@
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import EmptyState from '@/components/EmptyState';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface Event {
   id: string;

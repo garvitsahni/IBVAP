@@ -3,6 +3,15 @@ import { X, AlertTriangle, MapPin, Clock, Gauge } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { StatusBadge } from "@/components/ui/StatusBadge"
 
+interface Alert {
+  id: string
+  type: string
+  severity: "critical" | "high" | "medium" | "low" | "info"
+  cameraId: string
+  timestamp: string
+  status: string
+}
+
 interface AlertDetailPanelProps {
   alert: Alert | null
   onClose: () => void

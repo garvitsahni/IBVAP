@@ -7,8 +7,15 @@ const DATE_RANGES = [
   { value: '14d', label: 'Last 14 days' },
 ];
 
-export default function EventFilters({ filters, onChange, cameras, eventTypes }) {
-  const update = (key, value) => onChange({ ...filters, [key]: value });
+interface EventFiltersProps {
+  filters: { search: string; cameraId: string; type: string; range: string };
+  onChange: (filters: { search: string; cameraId: string; type: string; range: string }) => void;
+  cameras: { id: string; label: string; status: string }[];
+  eventTypes: string[];
+}
+
+export default function EventFilters({ filters, onChange, cameras, eventTypes }: EventFiltersProps) {
+  const update = (key: string, value: string) => onChange({ ...filters, [key]: value });
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

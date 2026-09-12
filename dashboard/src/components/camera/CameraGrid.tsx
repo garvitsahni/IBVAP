@@ -1,5 +1,5 @@
 import { CameraTile } from './CameraTile';
-import EmptyState from '../EmptyState';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface Camera {
   id: string;

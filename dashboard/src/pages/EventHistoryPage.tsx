@@ -121,7 +121,7 @@ export function EventHistoryPage() {
       </div>
 
       <AlertDetailPanel
-        alert={selectedEvent as unknown as Record<string, unknown> | null}
+        alert={selectedEvent as unknown as { id: string; type: string; severity: 'critical' | 'high' | 'medium' | 'low' | 'info'; cameraId: string; timestamp: string; status: string } | null}
         onClose={() => setSelectedEventId(null)}
       />
     </motion.div>

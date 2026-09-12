@@ -1,4 +1,3 @@
-import BarChart from '@/components/BarChart';
 import { NumberTicker } from '@/registry/magicui/number-ticker';
 
 interface Event {
@@ -9,6 +8,26 @@ interface Event {
 
 interface StatsPanelProps {
   events: Event[];
+}
+
+function BarChartSimple({ data }: { data: { label: string; value: number }[] }) {
+  const max = Math.max(...data.map(d => d.value), 1);
+  return (
+    <div className="space-y-1">
+      {data.map(d => (
+        <div key={d.label} className="flex items-center gap-2 text-xs">
+          <span className="w-20 truncate text-text-muted">{d.label}</span>
+          <div className="flex-1 h-4 bg-surface-2 rounded overflow-hidden">
+            <div
+              className="h-full bg-accent rounded"
+              style={{ width: `${(d.value / max) * 100}%` }}
+            />
+          </div>
+          <span className="w-8 text-right text-text-muted">{d.value}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function StatsPanel({ events }: StatsPanelProps) {
@@ -45,7 +64,7 @@ export default function StatsPanel({ events }: StatsPanelProps) {
         {detectionsByCamera.length === 0 ? (
           <p className="text-xs text-text-muted">No events in range.</p>
         ) : (
-          <BarChart data={detectionsByCamera} />
+          <BarChartSimple data={detectionsByCamera} />
         )}
       </div>
     </div>

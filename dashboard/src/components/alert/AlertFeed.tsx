@@ -1,6 +1,7 @@
 import { AnimatedList } from "@/registry/magicui/animated-list"
 import { AlertItem } from "./AlertItem"
 import { EmptyState } from "@/components/ui/EmptyState"
+import { Inbox } from "lucide-react"
 
 interface Alert {
   id: string
@@ -19,7 +20,7 @@ interface AlertFeedProps {
 
 export function AlertFeed({ alerts, selectedId, onSelect }: AlertFeedProps) {
   if (alerts.length === 0) {
-    return <EmptyState icon="inbox" title="No alerts" description="No active alerts at this time" />
+    return <EmptyState icon={Inbox} title="No alerts" description="No active alerts at this time" />
   }
 
   return (
