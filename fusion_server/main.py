@@ -4,13 +4,17 @@ from contextlib import asynccontextmanager
 
 from fusion_server.db.session import init_db
 from fusion_server.api import events, alerts, footprint, watchlist
-from fusion_server.api.routes import cameras, stream, rois, plates
+from fusion_server.api.routes import cameras, stream, streams, rois, plates, dashboard, ledger, clips, coverage
+from fusion_server.api.routes.system import router as system_router, set_aggregator
+from fusion_server.services.resilience_aggregator import ResilienceAggregator
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     init_db()
+    aggregator = ResilienceAggregator()
+    set_aggregator(aggregator)
     yield
     # Shutdown (if needed)
 
@@ -40,6 +44,12 @@ app.include_router(cameras.router)
 app.include_router(stream.router)
 app.include_router(rois.router)
 app.include_router(plates.router)
+app.include_router(dashboard.router)
+app.include_router(ledger.router)
+app.include_router(clips.router)
+app.include_router(streams.router)
+app.include_router(coverage.router)
+app.include_router(system_router)
 
 
 @app.get("/viewer")
@@ -160,6 +170,19 @@ async def test_noop_pipeline():
         }
     finally:
         db.close()
+
+
+# Serve static frontend builds
+import os
+from fastapi.staticfiles import StaticFiles
+
+dashboard_build = os.path.join(os.path.dirname(__file__), "..", "dashboard", "dist")
+if os.path.isdir(dashboard_build):
+    app.mount("/dashboard", StaticFiles(directory=dashboard_build, html=True), name="dashboard")
+
+patrol_build = os.path.join(os.path.dirname(__file__), "..", "patrol_app", "dist")
+if os.path.isdir(patrol_build):
+    app.mount("/patrol", StaticFiles(directory=patrol_build, html=True), name="patrol")
 
 
 if __name__ == "__main__":
