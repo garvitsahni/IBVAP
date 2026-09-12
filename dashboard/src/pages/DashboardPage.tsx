@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, Video, VideoOff, AlertTriangle } from 'lucide-react';
+import { Camera, Video, VideoOff, AlertTriangle, Shield, Activity } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
 import CameraGrid from '@/components/camera/CameraGrid';
 import { AlertFeed } from '@/components/alert/AlertFeed';
 import { AlertDetailPanel } from '@/components/alert/AlertDetailPanel';
 import ConnectionStatus from '@/components/event/ConnectionStatus';
 import { ToastStack } from '@/components/alert/ToastStack';
+import { ShimmerButton } from '@/registry/magicui/shimmer-button';
+import { PulsatingDot } from '@/registry/magicui/pulsating-dot';
 import { SSEClient } from '@/services/sse';
 import { api } from '@/services/api';
 import type { Alert as ApiAlert, Camera as ApiCamera } from '@/types/api';
@@ -127,6 +129,25 @@ export function DashboardPage() {
       transition={{ duration: 0.2 }}
       className="space-y-6"
     >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-text">Mission Control</h1>
+          <p className="text-sm text-text-muted">Real-time border surveillance dashboard</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+            <PulsatingDot color={connectionStatus === 'live' ? '#22c55e' : '#ef4444'} />
+            <span className="text-xs font-medium text-text-secondary capitalize">{connectionStatus}</span>
+          </div>
+          <ShimmerButton className="text-sm">
+            <Shield className="mr-2 inline h-4 w-4" />
+            Export Report
+          </ShimmerButton>
+        </div>
+      </div>
+
+      {/* Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard icon={Camera} label="Total Cameras" value={cameras.length} tone="primary" />
         <StatCard icon={Video} label="Online" value={onlineCount} tone="success" />
@@ -134,16 +155,26 @@ export function DashboardPage() {
         <StatCard icon={AlertTriangle} label="Active Alerts" value={activeAlertCount} tone="danger" />
       </div>
 
+      {/* Main Content */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
         <div className="min-w-0">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-text-primary">Live Camera Feeds</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-accent" />
+              <h2 className="text-sm font-semibold text-text-primary">Live Camera Feeds</h2>
+            </div>
             <ConnectionStatus status={connectionStatus} />
           </div>
           {initialLoading ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="aspect-video animate-pulse rounded-md border border-border bg-surface-2" />
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="aspect-video animate-pulse rounded-xl border border-border bg-surface-2"
+                />
               ))}
             </div>
           ) : (
@@ -152,13 +183,17 @@ export function DashboardPage() {
         </div>
 
         <div className="min-h-[320px]">
+          <div className="mb-3 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-severity-critical" />
+            <h2 className="text-sm font-semibold text-text-primary">Alert Feed</h2>
+          </div>
           {initialLoading ? (
-            <div className="rounded-lg border border-border bg-surface p-4">
+            <div className="rounded-xl border border-border bg-surface p-4">
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="animate-pulse space-y-2">
-                    <div className="h-3 w-3/4 rounded bg-surface-2" />
-                    <div className="h-2.5 w-1/3 rounded bg-surface-2" />
+                    <div className="h-3 w-3/4 rounded-lg bg-surface-2" />
+                    <div className="h-2.5 w-1/3 rounded-lg bg-surface-2" />
                   </div>
                 ))}
               </div>
