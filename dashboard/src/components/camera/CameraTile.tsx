@@ -1,33 +1,36 @@
-import { Camera, WifiOff } from "lucide-react"
+import { WifiOff } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { WebcamFeed } from "./WebcamFeed"
 
 interface CameraTileProps {
-  camera: { id: string; name: string; status: "online" | "offline" | "degraded"; lastSeen?: string }
+  camera: { id: string; name: string; status: "online" | "offline" | "degraded"; lastSeen?: string; sourceType?: string }
+  isMain?: boolean
   onClick?: () => void
 }
 
-export function CameraTile({ camera, onClick }: CameraTileProps) {
+export function CameraTile({ camera, isMain, onClick }: CameraTileProps) {
   const isOnline = camera.status === "online"
   const isDegraded = camera.status === "degraded"
+  const showWebcam = isMain && isOnline
 
   return (
     <div
       onClick={onClick}
       className={cn(
-        "relative cursor-pointer overflow-hidden rounded-lg border bg-surface aspect-video",
+        "relative overflow-hidden rounded-lg border bg-surface aspect-video",
         "transition-all duration-200",
-        isOnline && "border-border hover:border-accent/40",
+        isMain && "col-span-2 row-span-2 aspect-auto",
+        isOnline && "border-border hover:border-accent/30",
         !isOnline && "border-border opacity-60",
       )}
     >
-      {/* Feed background */}
-      {isOnline ? (
+      {showWebcam ? (
+        <WebcamFeed />
+      ) : isOnline ? (
         <div className="absolute inset-0 bg-surface-2">
-          {/* Scanline effect */}
           <div className="absolute inset-0 opacity-[0.03]" style={{
             backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 4px)"
           }} />
-          {/* Center crosshair */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <div className="h-px w-8 bg-accent/20" />
             <div className="absolute left-1/2 top-1/2 h-8 w-px -translate-x-1/2 -translate-y-1/2 bg-accent/20" />

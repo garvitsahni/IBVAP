@@ -49,7 +49,6 @@ interface Props {
 export function DetectionOverlay({ cameraId, detections: propDetections, videoWidth, videoHeight }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [scaled, setScaled] = useState<ScaledDetection[]>([]);
-  const [debug, setDebug] = useState("");
   const sseDetsRef = useRef<ScaledDetection[]>([]);
 
   // Rescale whenever props or container size changes
@@ -61,7 +60,6 @@ export function DetectionOverlay({ cameraId, detections: propDetections, videoWi
       const dw = root.clientWidth;
       const dh = root.clientHeight;
       if (!dw || !dh) {
-        setDebug(`overlay ${dw}x${dh}`);
         return;
       }
 
@@ -76,10 +74,8 @@ export function DetectionOverlay({ cameraId, detections: propDetections, videoWi
           if (m) results.push({ ...d, ...m });
         }
         setScaled(results);
-        setDebug(`${results.length} boxes | overlay ${dw}x${dh} | src ${sw}x${sh}`);
       } else {
         setScaled(sseDetsRef.current);
-        setDebug(`${sseDetsRef.current.length} sse | overlay ${dw}x${dh}`);
       }
     };
 
@@ -115,20 +111,6 @@ export function DetectionOverlay({ cameraId, detections: propDetections, videoWi
         zIndex: 10,
       }}
     >
-      {/* Red test dot ΓÇö proves overlay is visible */}
-      <div
-        style={{
-          position: "absolute",
-          top: 6,
-          right: 6,
-          width: 14,
-          height: 14,
-          borderRadius: 7,
-          background: "#ff0000",
-          border: "2px solid white",
-          zIndex: 999,
-        }}
-      />
       {/* Boxes */}
       {scaled.map((det, i) => {
         const color = det.object_type === "person" ? "#34d399" : "#fbbf24";
@@ -166,25 +148,6 @@ export function DetectionOverlay({ cameraId, detections: propDetections, videoWi
           </div>
         );
       })}
-      {/* Debug bar */}
-      {debug && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 6,
-            left: 6,
-            padding: "3px 8px",
-            background: "rgba(0,0,0,0.85)",
-            color: "#0ff",
-            fontSize: 10,
-            fontFamily: "monospace",
-            borderRadius: 3,
-            zIndex: 999,
-          }}
-        >
-          {debug}
-        </div>
-      )}
     </div>
   );
 }
