@@ -61,6 +61,26 @@ class SSEBroadcaster:
         }
         await self._broadcast(event)
 
+    async def broadcast_detection_tier_changed(self, tier_data: dict) -> None:
+        """Broadcast a detection_tier_changed event to all subscribers."""
+        event = {"event": "detection_tier_changed", "data": json.dumps(tier_data)}
+        await self._broadcast(event)
+
+    async def broadcast_power_mode_changed(self, power_data: dict) -> None:
+        """Broadcast a power_mode_changed event to all subscribers."""
+        event = {"event": "power_mode_changed", "data": json.dumps(power_data)}
+        await self._broadcast(event)
+
+    async def broadcast_system_health_changed(self, health_data: dict) -> None:
+        """Broadcast a system_health_changed event to all subscribers."""
+        event = {"event": "system_health_changed", "data": json.dumps(health_data)}
+        await self._broadcast(event)
+
+    async def broadcast_ledger_resumed(self, ledger_data: dict) -> None:
+        """Broadcast a ledger_resumed event to all subscribers."""
+        event = {"event": "ledger_resumed", "data": json.dumps(ledger_data)}
+        await self._broadcast(event)
+
     async def _broadcast(self, event: dict) -> None:
         """Send event to all subscribers, removing disconnected ones."""
         dead = []
