@@ -1,7 +1,21 @@
-import StatusBadge from './ui/StatusBadge';
-import EmptyState from './EmptyState';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import EmptyState from '@/components/EmptyState';
 
-const STATUS_LABEL = {
+interface Event {
+  id: string;
+  cameraId: string;
+  type: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  status: string;
+  timestamp: number;
+}
+
+interface EventTableProps {
+  events: Event[];
+  onSelectEvent?: (event: Event) => void;
+}
+
+const STATUS_LABEL: Record<string, string> = {
   acknowledged: 'Acknowledged',
   escalated: 'Escalated',
   false_positive: 'False Positive',
@@ -9,7 +23,7 @@ const STATUS_LABEL = {
   new: 'New',
 };
 
-function formatDateTime(ts) {
+function formatDateTime(ts: number) {
   return new Date(ts).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -18,12 +32,12 @@ function formatDateTime(ts) {
   });
 }
 
-export default function EventTable({ events, onSelectEvent }) {
+export default function EventTable({ events, onSelectEvent }: EventTableProps) {
   return (
-    <div className="overflow-hidden rounded-md border border-ops-border">
+    <div className="overflow-hidden rounded-md border border-border">
       <div className="max-h-[480px] overflow-y-auto">
         <table className="w-full border-collapse text-left text-xs">
-          <thead className="sticky top-0 bg-ops-panel2 text-ops-muted">
+          <thead className="sticky top-0 bg-surface-2 text-text-muted">
             <tr>
               <th className="px-3 py-2 font-medium">Event</th>
               <th className="px-3 py-2 font-medium">Camera</th>
@@ -33,7 +47,7 @@ export default function EventTable({ events, onSelectEvent }) {
               <th className="px-3 py-2 font-medium">Time</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-ops-border">
+          <tbody className="divide-y divide-border">
             {events.length === 0 ? (
               <tr>
                 <td colSpan={6}>
@@ -48,23 +62,23 @@ export default function EventTable({ events, onSelectEvent }) {
                 <tr
                   key={event.id}
                   onClick={() => onSelectEvent?.(event)}
-                  className="cursor-pointer bg-ops-panel hover:bg-ops-panel2 transition-colors"
+                  className="cursor-pointer bg-surface hover:bg-surface-2 transition-colors"
                 >
-                  <td className="px-3 py-2 font-mono text-ops-text">{event.id}</td>
-                  <td className="px-3 py-2 font-mono text-ops-muted">{event.cameraId}</td>
-                  <td className="px-3 py-2 text-ops-text">{event.type}</td>
+                  <td className="px-3 py-2 font-mono text-text">{event.id}</td>
+                  <td className="px-3 py-2 font-mono text-text-muted">{event.cameraId}</td>
+                  <td className="px-3 py-2 text-text">{event.type}</td>
                   <td className="px-3 py-2">
                     <StatusBadge severity={event.severity} />
                   </td>
-                  <td className="px-3 py-2 text-ops-muted">{STATUS_LABEL[event.status] || event.status}</td>
-                  <td className="px-3 py-2 text-ops-muted">{formatDateTime(event.timestamp)}</td>
+                  <td className="px-3 py-2 text-text-muted">{STATUS_LABEL[event.status] || event.status}</td>
+                  <td className="px-3 py-2 text-text-muted">{formatDateTime(event.timestamp)}</td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
-      <div className="border-t border-ops-border bg-ops-panel2 px-3 py-1.5 text-[11px] text-ops-muted">
+      <div className="border-t border-border bg-surface-2 px-3 py-1.5 text-[11px] text-text-muted">
         {events.length} event{events.length !== 1 ? 's' : ''}
       </div>
     </div>

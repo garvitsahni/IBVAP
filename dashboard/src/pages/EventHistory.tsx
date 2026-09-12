@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import EventFilters from '../components/EventFilters';
-import EventTable from '../components/EventTable';
-import StatsPanel from '../components/StatsPanel';
+import EventTable from '../components/event/EventTable';
+import StatsPanel from '../components/event/StatsPanel';
 import AlertDetailPanel from '../components/AlertDetailPanel';
 // TODO: Replace with real API (Task 10)
 const MOCK_CAMERAS: Array<{ id: string; label: string; status: string }> = [];

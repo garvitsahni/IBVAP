@@ -6,7 +6,7 @@ import StatCard from '../components/ui/StatCard';
 import CameraGrid from '../components/camera/CameraGrid';
 import AlertFeed from '../components/AlertFeed';
 import AlertDetailPanel from '../components/AlertDetailPanel';
-import ConnectionStatus from '../components/ConnectionStatus';
+import ConnectionStatus from '../components/event/ConnectionStatus';
 import ToastStack from '../components/ToastStack';
 import { CameraGridSkeleton, ListSkeleton } from '../components/Skeletons';
 // TODO: Replace with real hooks and API (Task 10)
