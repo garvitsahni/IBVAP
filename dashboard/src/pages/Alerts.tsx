@@ -1,5 +1,7 @@
-import Card from "../components/ui/Card.jsx";
-import { MOCK_ALERTS } from "../data/mockData.js";
+import Card from "../components/ui/Card";
+
+// TODO: Replace with real API (Task 10)
+const MOCK_ALERTS: Array<{ id: string; type: string; severity: string; cameraId: string; timestamp: number }> = [];
 
 const severityColor = {
   critical: "#ef4444",

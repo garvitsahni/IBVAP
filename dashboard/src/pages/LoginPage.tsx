@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, User, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import loginBackground from '../assets/login-background.png';
+// TODO: Replace with real auth context (Task 10)
+const useAuth = () => ({ login: async () => {} });
+const loginBackground = '';
 
 // BorderEye login page — background image on the left + credential card on the right.
 

@@ -10,10 +10,8 @@ import {
   Settings,
   LogOut,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-
-// Assumes AuthContext exposes { user, logout() }. user is expected to look
-// like { name, badgeId } — adjust the two lines in the footer if your shape differs.
+// TODO: Replace with real auth context (Task 10)
+const useAuth = () => ({ user: null, logout: async () => {} });
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },

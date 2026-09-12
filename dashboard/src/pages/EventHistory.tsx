@@ -3,7 +3,9 @@ import EventFilters from '../components/EventFilters';
 import EventTable from '../components/EventTable';
 import StatsPanel from '../components/StatsPanel';
 import AlertDetailPanel from '../components/AlertDetailPanel';
-import { MOCK_CAMERAS, MOCK_EVENTS } from '../data/mockData';
+// TODO: Replace with real API (Task 10)
+const MOCK_CAMERAS: Array<{ id: string; label: string; status: string }> = [];
+const MOCK_EVENTS: Array<{ id: string; cameraId: string; type: string; timestamp: number; status: string }> = [];
 
 const RANGE_MS = {
   '24h': 24 * 60 * 60 * 1000,

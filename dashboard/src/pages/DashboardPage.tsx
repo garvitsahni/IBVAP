@@ -9,8 +9,14 @@ import AlertDetailPanel from '../components/AlertDetailPanel';
 import ConnectionStatus from '../components/ConnectionStatus';
 import ToastStack from '../components/ToastStack';
 import { CameraGridSkeleton, ListSkeleton } from '../components/Skeletons';
-import { useAlertStream } from '../hooks/useAlertStream';
-import { MOCK_CAMERAS, MOCK_ALERTS } from '../data/mockData';
+// TODO: Replace with real hooks and API (Task 10)
+const MOCK_CAMERAS = [] as Array<{ id: string; label: string; status: string; url: string }>;
+const MOCK_ALERTS = [] as Array<{ id: string; type: string; severity: string; cameraId: string; timestamp: number; status: string; description: string }>;
+const useAlertStream = ({ initialAlerts }: { initialAlerts: unknown[] }) => ({
+  alerts: initialAlerts,
+  connectionStatus: 'disconnected',
+  updateAlertStatus: (_id: string, _status: string) => {},
+});
 
 export default function DashboardPage() {
   const { alerts, connectionStatus, updateAlertStatus } = useAlertStream({

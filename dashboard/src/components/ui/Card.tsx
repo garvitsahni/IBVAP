@@ -1,5 +1,3 @@
-import "./Card.css";
-
 export default function Card({ title, eyebrow, children, footer }) {
   return (
     <div className="card">

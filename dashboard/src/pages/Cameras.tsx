@@ -1,5 +1,7 @@
-import Card from "../components/ui/Card.jsx";
-import { MOCK_CAMERAS } from "../data/mockData.js";
+import Card from "../components/ui/Card";
+
+// TODO: Replace with real API (Task 10)
+const MOCK_CAMERAS: Array<{ id: string; label: string; status: string }> = [];
 
 const statusStyle = {
   online: { color: "#22c55e", label: "Online" },

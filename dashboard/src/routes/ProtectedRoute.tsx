@@ -1,6 +1,8 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext.jsx";
-import Spinner from "../components/ui/Spinner.jsx";
+import Spinner from "../components/ui/Spinner";
+
+// TODO: Replace with real auth context (Task 10)
+const useAuth = () => ({ isAuthenticated: false, loading: false });
 
 export default function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
