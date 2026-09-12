@@ -6,6 +6,7 @@ from fusion_server.db.models import Base
 from fusion_server.db.session import get_db
 from fusion_server.main import app
 from fastapi.testclient import TestClient
+from unittest.mock import patch
 
 
 # Use in-memory SQLite for fast tests
@@ -46,6 +47,8 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
-        yield test_client
+    # Patch init_db so the lifespan doesn't try to connect to PostgreSQL
+    with patch("fusion_server.main.init_db"):
+        with TestClient(app) as test_client:
+            yield test_client
     app.dependency_overrides.clear()

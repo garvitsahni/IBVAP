@@ -39,6 +39,7 @@ httpx>=0.27.0
 # Re-ID / Embeddings
 onnxruntime>=1.17.0
 scikit-image>=0.22.0
+insightface>=0.7.3
 
 # Encryption
 cryptography>=42.0.0

@@ -1,6 +1,8 @@
 """
 Shared detection service — loads YOLOv8n once, serves batched inference
 to camera workers via multiprocessing.Queue.
+
+Supports SWITCH_MODEL protocol for night mode weight switching.
 """
 import numpy as np
 import multiprocessing
@@ -11,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 TARGET_CLASSES = {0, 2, 3, 5, 7}
 CLASS_NAMES = {0: "person", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
+
+# Sentinel value for model switching — sent through req_queue
+SWITCH_MODEL = "SWITCH_MODEL"
 
 
 def motion_detection(frame: np.ndarray, prev_frame: np.ndarray, min_area: int = 500) -> List[Dict]:
@@ -110,6 +115,16 @@ class DetectionService:
             if item is None:
                 logger.info("Detection service received shutdown signal")
                 break
+
+            # Handle SWITCH_MODEL command: ("SWITCH_MODEL", model_path)
+            if isinstance(item, tuple) and len(item) == 2 and item[0] == SWITCH_MODEL:
+                new_path = item[1]
+                try:
+                    self.set_model(new_path)
+                    logger.info(f"Detection model switched to {new_path}")
+                except Exception as e:
+                    logger.error(f"Failed to switch model to {new_path}: {e}")
+                continue
 
             frame_id, camera_id, frame = item
             try:

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fusion_server.db.session import init_db
 from fusion_server.api import events, alerts, footprint, watchlist
-from fusion_server.api.routes import cameras, stream, streams, rois, plates, dashboard, ledger, clips, coverage
+from fusion_server.api.routes import cameras, stream, streams, rois, plates, dashboard, ledger, clips, coverage, detect
 from fusion_server.api.routes.system import router as system_router, set_aggregator
 from fusion_server.services.camera_offline_monitor import CameraOfflineMonitor
 from fusion_server.services.detector_fallback import DetectorFallback
@@ -41,6 +41,17 @@ async def lifespan(app: FastAPI):
     aggregator.update_ledger_status(ledger_status.get("status", "ok"))
     set_aggregator(aggregator)
 
+    # Sync registered cameras into the in-memory health store
+    from fusion_server.db.session import SessionLocal
+    from fusion_server.api.routes.cameras import sync_cameras_to_health_store
+    db = SessionLocal()
+    try:
+        sync_cameras_to_health_store(db)
+    except Exception:
+        logger.warning("Camera sync failed", exc_info=True)
+    finally:
+        db.close()
+
     # Initialize monitors (will be started by their respective owners)
     detector_fallback = DetectorFallback()
     power_manager = PowerManager()
@@ -71,7 +82,6 @@ app.include_router(alerts.router)
 app.include_router(footprint.router)
 app.include_router(watchlist.router)
 app.include_router(cameras.router)
-app.include_router(stream.router)
 app.include_router(rois.router)
 app.include_router(plates.router)
 app.include_router(dashboard.router)
@@ -79,7 +89,14 @@ app.include_router(ledger.router)
 app.include_router(clips.router)
 app.include_router(streams.router)
 app.include_router(coverage.router)
+app.include_router(detect.router)
 app.include_router(system_router)
+
+
+@app.get("/")
+async def root():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard/")
 
 
 @app.get("/viewer")

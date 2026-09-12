@@ -4,7 +4,7 @@ Per-camera processing pipeline: ingest -> preprocess -> detect -> track -> publi
 import time
 import logging
 import multiprocessing
-from typing import Optional
+from typing import Optional, Dict
 
 import numpy as np
 
@@ -14,6 +14,7 @@ from edge.tracker import Tracker
 from edge.event_publisher import EventPublisher
 from edge.visualizer import Visualizer
 from edge.camera_health import CameraHealthService
+from edge.detector import SWITCH_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,14 @@ class CameraWorker:
         res_queue: multiprocessing.Queue,
         reid_req_queue: multiprocessing.Queue,
         reid_res_queue: multiprocessing.Queue,
+        face_det_req_queue: multiprocessing.Queue = None,
+        face_det_res_queue: multiprocessing.Queue = None,
+        face_emb_req_queue: multiprocessing.Queue = None,
+        face_emb_res_queue: multiprocessing.Queue = None,
+        plate_det_req_queue: multiprocessing.Queue = None,
+        plate_det_res_queue: multiprocessing.Queue = None,
+        plate_ocr_req_queue: multiprocessing.Queue = None,
+        plate_ocr_res_queue: multiprocessing.Queue = None,
         target_fps: int = 10,
         display: bool = True,
         force_mode: Optional[str] = None,
@@ -57,6 +66,33 @@ class CameraWorker:
         self.res_queue = res_queue
         self.reid_req_queue = reid_req_queue
         self.reid_res_queue = reid_res_queue
+
+        self.face_det_req_queue = face_det_req_queue
+        self.face_det_res_queue = face_det_res_queue
+        self.face_emb_req_queue = face_emb_req_queue
+        self.face_emb_res_queue = face_emb_res_queue
+        self._face_available = all(q is not None for q in [
+            face_det_req_queue, face_det_res_queue,
+            face_emb_req_queue, face_emb_res_queue,
+        ])
+
+        self.plate_det_req_queue = plate_det_req_queue
+        self.plate_det_res_queue = plate_det_res_queue
+        self.plate_ocr_req_queue = plate_ocr_req_queue
+        self.plate_ocr_res_queue = plate_ocr_res_queue
+        self._plate_available = all(q is not None for q in [
+            plate_det_req_queue, plate_det_res_queue,
+            plate_ocr_req_queue, plate_ocr_res_queue,
+        ])
+
+        # Night mode model switching
+        self._current_mode = "normal"
+        self._night_model_paths: Dict[str, str] = {
+            "normal": "yolov8n.pt",
+            "night": "yolov8n_night.pt",
+            "hazy": "yolov8n.pt",
+        }
+
         self._frame_id = 0
 
         self.health_check_interval = health_check_interval
@@ -137,6 +173,17 @@ class CameraWorker:
 
             processed_frame, mode_info = self.night_weather.process(frame, self.force_mode)
 
+            # Detect mode change and switch detection model
+            new_mode = mode_info["mode"]
+            if new_mode != self._current_mode:
+                self._current_mode = new_mode
+                model_path = self._night_model_paths.get(new_mode, "yolov8n.pt")
+                try:
+                    self.req_queue.put((SWITCH_MODEL, model_path))
+                    logger.info(f"Camera {self.camera_id}: Mode changed to {new_mode}, switching model to {model_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to send SWITCH_MODEL: {e}")
+
             self.req_queue.put((self._frame_id, self.camera_id, processed_frame))
 
             detections = None
@@ -172,11 +219,107 @@ class CameraWorker:
                 except Exception:
                     continue
 
+            # Face detection + embedding for person tracks
+            face_embeddings = {}
+            if self._face_available:
+                person_tracks = [t for t in tracks if t.class_name == "person"]
+                if person_tracks:
+                    # Send person crops to face detector
+                    for track in person_tracks:
+                        crop = self._crop_detection(frame, {"bbox": track.bbox})
+                        self.face_det_req_queue.put(
+                            (self._frame_id, self.camera_id, track.track_id, crop)
+                        )
+
+                    # Collect face detections
+                    face_dets = {}
+                    for _ in range(len(person_tracks)):
+                        try:
+                            fid, cid, tid, faces = self.face_det_res_queue.get(timeout=0.2)
+                            if cid == self.camera_id:
+                                face_dets[(fid, tid)] = faces
+                        except Exception:
+                            continue
+
+                    # For each person with faces, crop largest face and send to embed
+                    embed_requests = []
+                    for track in person_tracks:
+                        faces = face_dets.get((self._frame_id, track.track_id), [])
+                        if faces:
+                            # Pick the largest face by area
+                            best = max(faces, key=lambda f: (f["bbox"][2] - f["bbox"][0]) * (f["bbox"][3] - f["bbox"][1]))
+                            person_crop = self._crop_detection(frame, {"bbox": track.bbox})
+                            fx1, fy1, fx2, fy2 = best["bbox"]
+                            face_crop = person_crop[fy1:fy2, fx1:fx2]
+                            if face_crop.size > 0:
+                                self.face_emb_req_queue.put(
+                                    (self._frame_id, self.camera_id, track.track_id, face_crop)
+                                )
+                                embed_requests.append(track.track_id)
+
+                    # Collect face embeddings
+                    for _ in range(len(embed_requests)):
+                        try:
+                            fid, cid, tid, emb = self.face_emb_res_queue.get(timeout=0.2)
+                            if cid == self.camera_id:
+                                face_embeddings[(fid, tid)] = emb
+                        except Exception:
+                            continue
+
+            # Plate detection + OCR for vehicle tracks
+            plate_texts = {}
+            if self._plate_available:
+                vehicle_tracks = [t for t in tracks if t.class_name in ("car", "bus", "truck", "motorcycle")]
+                if vehicle_tracks:
+                    # Send vehicle crops to plate detector
+                    for track in vehicle_tracks:
+                        crop = self._crop_detection(frame, {"bbox": track.bbox})
+                        self.plate_det_req_queue.put(
+                            (self._frame_id, self.camera_id, track.track_id, crop)
+                        )
+
+                    # Collect plate detections
+                    plate_dets = {}
+                    for _ in range(len(vehicle_tracks)):
+                        try:
+                            fid, cid, tid, plates = self.plate_det_res_queue.get(timeout=0.2)
+                            if cid == self.camera_id:
+                                plate_dets[(fid, tid)] = plates
+                        except Exception:
+                            continue
+
+                    # For each vehicle with detected plate, crop plate and send to OCR
+                    ocr_requests = []
+                    for track in vehicle_tracks:
+                        plates = plate_dets.get((self._frame_id, track.track_id), [])
+                        if plates:
+                            # Pick the largest plate by area
+                            best_plate = max(plates, key=lambda p: (p["bbox"][2] - p["bbox"][0]) * (p["bbox"][3] - p["bbox"][1]))
+                            vehicle_crop = self._crop_detection(frame, {"bbox": track.bbox})
+                            px1, py1, px2, py2 = best_plate["bbox"]
+                            plate_crop = vehicle_crop[py1:py2, px1:px2]
+                            if plate_crop.size > 0:
+                                self.plate_ocr_req_queue.put(
+                                    (self._frame_id, self.camera_id, track.track_id, plate_crop)
+                                )
+                                ocr_requests.append(track.track_id)
+
+                    # Collect plate OCR results
+                    for _ in range(len(ocr_requests)):
+                        try:
+                            fid, cid, tid, text = self.plate_ocr_res_queue.get(timeout=0.2)
+                            if cid == self.camera_id:
+                                plate_texts[(fid, tid)] = text
+                        except Exception:
+                            continue
+
             # Publish events with embeddings
             ts_iso = timestamp.isoformat() + "Z"
             for track in tracks:
                 object_type = "person" if track.class_name == "person" else "vehicle"
                 embedding = reid_embeddings.get((self._frame_id, track.track_id))
+                face_emb = face_embeddings.get((self._frame_id, track.track_id))
+                plate_text = plate_texts.get((self._frame_id, track.track_id))
                 event = self.publisher.build_event(
                     camera_id=self.camera_id,
                     timestamp=ts_iso,
@@ -187,6 +330,10 @@ class CameraWorker:
                     confidence=track.confidence,
                     embedding=embedding,
                 )
+                if face_emb is not None:
+                    event["face_embedding"] = face_emb.tolist()
+                if plate_text is not None:
+                    event["plate_text"] = plate_text
                 self.publisher.publish(event)
 
             if not self.visualizer.render(frame, tracks, mode_info):

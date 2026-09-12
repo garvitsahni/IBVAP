@@ -9,7 +9,7 @@ from datetime import datetime
 from fusion_server.db.session import get_db
 from fusion_server.db.models import Watchlist
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class WatchlistCreate(BaseModel):
@@ -18,6 +18,13 @@ class WatchlistCreate(BaseModel):
     embedding: List[float]
     metadata: Optional[dict] = None
     expires_at: Optional[datetime] = None
+
+    @field_validator("watchlist_type")
+    @classmethod
+    def validate_watchlist_type(cls, v: str) -> str:
+        if v not in ("face", "plate"):
+            raise ValueError("watchlist_type must be 'face' or 'plate'")
+        return v
 
 
 class WatchlistUpdate(BaseModel):
@@ -50,7 +57,7 @@ async def create_watchlist_entry(entry: WatchlistCreate, db: Session = Depends(g
         watchlist_type=entry.watchlist_type,
         reference_id=entry.reference_id,
         embedding=entry.embedding,
-        metadata=entry.metadata,
+        extra_metadata=entry.metadata,
         active=True,
         expires_at=entry.expires_at,
     )
@@ -63,7 +70,7 @@ async def create_watchlist_entry(entry: WatchlistCreate, db: Session = Depends(g
         watchlist_type=db_entry.watchlist_type,
         reference_id=db_entry.reference_id,
         embedding=db_entry.embedding,
-        metadata=db_entry.metadata,
+        metadata=db_entry.extra_metadata,
         active=db_entry.active,
         created_at=db_entry.created_at,
         expires_at=db_entry.expires_at,
@@ -92,7 +99,7 @@ async def list_watchlist(
             watchlist_type=e.watchlist_type,
             reference_id=e.reference_id,
             embedding=e.embedding,
-            metadata=e.metadata,
+            metadata=e.extra_metadata,
             active=e.active,
             created_at=e.created_at,
             expires_at=e.expires_at,
@@ -130,7 +137,7 @@ async def update_watchlist_entry(entry_id: int, update: WatchlistUpdate, db: Ses
     if update.active is not None:
         entry.active = update.active
     if update.metadata is not None:
-        entry.metadata = update.metadata
+        entry.extra_metadata = update.metadata
     if update.expires_at is not None:
         entry.expires_at = update.expires_at
 
@@ -142,7 +149,7 @@ async def update_watchlist_entry(entry_id: int, update: WatchlistUpdate, db: Ses
         watchlist_type=entry.watchlist_type,
         reference_id=entry.reference_id,
         embedding=entry.embedding,
-        metadata=entry.metadata,
+        metadata=entry.extra_metadata,
         active=entry.active,
         created_at=entry.created_at,
         expires_at=entry.expires_at,

@@ -1,10 +1,12 @@
 """
 Alerts API - GET /alerts, alert lifecycle management
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+import asyncio
 import uuid
 
 from fusion_server.db.session import get_db
@@ -56,17 +58,36 @@ router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
 @router.post("", response_model=AlertResponse, status_code=status.HTTP_201_CREATED)
 async def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
-    """Create a new alert (fired by rule engine)."""
+    """Create a new alert (fired by rule engine). If clip_path provided, burn-in overlay automatically."""
     alert_id = str(uuid.uuid4())
+
+    # If clip provided, render overlay before persisting
+    final_clip_path = alert.clip_path
+    if alert.clip_path:
+        try:
+            from fusion_server.services.clip_overlay import render_overlay
+            overlay_out = alert.clip_path.replace(".mp4", "_overlay.mp4")
+            render_overlay(
+                input_path=alert.clip_path,
+                output_path=overlay_out,
+                camera_id=alert.camera_id,
+                timestamp=alert.timestamp.isoformat(),
+                threat_score=alert.threat_score,
+                reason=alert.reason,
+            )
+            final_clip_path = overlay_out
+        except Exception:
+            pass  # Overlay is best-effort; alert fires regardless (AGENTS.md Rule 4)
+
     db_alert = Alert(
         alert_id=alert_id,
         object_id=alert.object_id,
         camera_id=alert.camera_id,
         timestamp=alert.timestamp,
         reason=alert.reason,
-        status="fired",  # Always starts as 'fired' per ARCHITECTURE.md
+        status="fired",
         threat_score=alert.threat_score,
-        clip_path=alert.clip_path,
+        clip_path=final_clip_path,
         trajectory_projection=alert.trajectory_projection,
     )
     db.add(db_alert)
@@ -97,6 +118,8 @@ async def list_alerts(
     status: Optional[str] = None,
     object_id: Optional[str] = None,
     camera_id: Optional[str] = None,
+    since: Optional[datetime] = None,
+    until: Optional[datetime] = None,
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -109,6 +132,10 @@ async def list_alerts(
         query = query.filter(Alert.object_id == object_id)
     if camera_id:
         query = query.filter(Alert.camera_id == camera_id)
+    if since:
+        query = query.filter(Alert.timestamp >= since)
+    if until:
+        query = query.filter(Alert.timestamp <= until)
     alerts = query.order_by(Alert.timestamp.desc()).offset(offset).limit(limit).all()
 
     return [
@@ -130,6 +157,37 @@ async def list_alerts(
         )
         for a in alerts
     ]
+
+
+@router.get("/stream")
+async def alert_stream(request: Request):
+    """SSE endpoint — streams alert events in real-time."""
+    from fusion_server.services.broadcaster import get_broadcaster
+    broadcaster = get_broadcaster()
+    queue = broadcaster.subscribe()
+
+    async def event_generator():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield f"event: {event['event']}\ndata: {event['data']}\n\n"
+                except asyncio.TimeoutError:
+                    yield f": keepalive\n\n"
+        finally:
+            broadcaster.unsubscribe(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/{alert_id}", response_model=AlertResponse)

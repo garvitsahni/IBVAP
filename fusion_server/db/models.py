@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, BigInteger, String, DateTime, Float, JSON, Text, Boolean, ForeignKey, Index, CheckConstraint
+    Column, Integer, BigInteger, String, DateTime, Float, JSON, Text, Boolean, ForeignKey, Index, CheckConstraint
 )
 from sqlalchemy.orm import declarative_base, relationship
 from pgvector.sqlalchemy import Vector
@@ -19,6 +19,8 @@ class DetectionEvent(Base):
     track_id = Column(String(64), nullable=False)
     bbox = Column(JSON, nullable=False)  # [x1, y1, x2, y2] normalized 0-1
     embedding = Column(Vector(512), nullable=True)  # OSNet/vehicle-ReID embedding
+    face_embedding = Column(Vector(512), nullable=True)  # ArcFace face embedding
+    plate_text = Column(String(32), nullable=True)  # ANPR plate text
     confidence = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
@@ -108,4 +110,26 @@ class Watchlist(Base):
     __table_args__ = (
         Index('idx_watchlist_type_active', 'watchlist_type', 'active', postgresql_where=(active == True)),
         CheckConstraint("watchlist_type IN ('face', 'plate')", name='ck_watchlist_type'),
+    )
+
+
+class Camera(Base):
+    __tablename__ = "cameras"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    camera_id = Column(String(64), unique=True, nullable=False, index=True)
+    name = Column(String(128), nullable=False)
+    source_type = Column(String(16), nullable=False, default="unknown")  # 'rtsp' | 'usb' | 'webcam' | 'hls' | 'unknown'
+    rtsp_url = Column(String(512), nullable=True)
+    location = Column(String(256), nullable=True)
+    fov_polygon = Column(JSON, nullable=True)  # [[x,y], ...] normalized 0-1
+    zone = Column(String(64), nullable=True)  # 'perimeter' | 'entry' | 'interior' | etc.
+    status = Column(String(16), nullable=False, default="registered")  # 'registered' | 'online' | 'offline' | 'error'
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_cameras_source_type', 'source_type'),
+        Index('idx_cameras_active', 'is_active'),
     )

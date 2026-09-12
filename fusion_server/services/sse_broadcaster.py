@@ -81,6 +81,11 @@ class SSEBroadcaster:
         event = {"event": "ledger_resumed", "data": json.dumps(ledger_data)}
         await self._broadcast(event)
 
+    async def broadcast_detection(self, detection_data: dict) -> None:
+        """Broadcast a detection event to all subscribers."""
+        event = {"event": "detection", "data": json.dumps(detection_data)}
+        await self._broadcast(event)
+
     async def _broadcast(self, event: dict) -> None:
         """Send event to all subscribers, removing disconnected ones."""
         dead = []
