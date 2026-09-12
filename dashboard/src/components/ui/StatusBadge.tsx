@@ -1,26 +1,23 @@
-const SEVERITY_STYLES = {
-  critical: 'bg-severity-critical/10 text-severity-critical',
-  high: 'bg-severity-critical/10 text-severity-critical',
-  medium: 'bg-severity-medium/15 text-yellow-700',
-  low: 'bg-severity-low/10 text-green-700',
-  info: 'bg-severity-info/10 text-severity-info',
-};
+import { cn } from "@/lib/utils"
 
-const SEVERITY_LABEL = {
-  critical: 'High',
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low',
-  info: 'Info',
-};
+interface StatusBadgeProps {
+  severity: "critical" | "high" | "medium" | "low" | "info"
+  className?: string
+}
 
-export default function StatusBadge({ severity }) {
-  const style = SEVERITY_STYLES[severity] || 'bg-surface-border text-surface-muted';
-  const label = SEVERITY_LABEL[severity] || severity;
+const SEVERITY_CONFIG = {
+  critical: { label: "Critical", className: "bg-severity-critical/15 text-severity-critical" },
+  high: { label: "High", className: "bg-severity-high/15 text-severity-high" },
+  medium: { label: "Medium", className: "bg-severity-medium/15 text-severity-medium" },
+  low: { label: "Low", className: "bg-severity-low/15 text-severity-low" },
+  info: { label: "Info", className: "bg-severity-info/15 text-severity-info" },
+}
 
+export function StatusBadge({ severity, className }: StatusBadgeProps) {
+  const config = SEVERITY_CONFIG[severity]
   return (
-    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${style}`}>
-      {label}
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", config.className, className)}>
+      {config.label}
     </span>
-  );
+  )
 }

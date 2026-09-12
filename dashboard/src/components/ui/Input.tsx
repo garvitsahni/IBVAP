@@ -1,35 +1,36 @@
-export default function Input({
-  id,
-  label,
-  type = "text",
-  value,
-  onChange,
-  placeholder,
-  required = false,
-  error,
-}) {
+import type { InputHTMLAttributes } from "react"
+import { cn } from "@/lib/utils"
+
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  label?: string
+  error?: string
+}
+
+export function Input({ label, error, className, id, ...props }: InputProps) {
   return (
-    <div className="field">
-      <label htmlFor={id} className="field__label">
-        {label}
-      </label>
+    <div className="space-y-1">
+      {label && (
+        <label htmlFor={id} className="block text-sm font-medium text-text">
+          {label}
+        </label>
+      )}
       <input
         id={id}
-        name={id}
-        type={type}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        required={required}
-        className={`field__input${error ? " field__input--error" : ""}`}
+        className={cn(
+          "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted",
+          "focus:outline-none focus:ring-2 focus:ring-accent",
+          error && "border-severity-critical focus:ring-severity-critical",
+          className,
+        )}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
+        {...props}
       />
       {error && (
-        <p id={`${id}-error`} className="field__error">
+        <p id={`${id}-error`} className="text-xs text-severity-critical">
           {error}
         </p>
       )}
     </div>
-  );
+  )
 }
