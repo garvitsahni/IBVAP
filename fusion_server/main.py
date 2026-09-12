@@ -6,15 +6,45 @@ from fusion_server.db.session import init_db
 from fusion_server.api import events, alerts, footprint, watchlist
 from fusion_server.api.routes import cameras, stream, streams, rois, plates, dashboard, ledger, clips, coverage
 from fusion_server.api.routes.system import router as system_router, set_aggregator
+from fusion_server.services.camera_offline_monitor import CameraOfflineMonitor
+from fusion_server.services.detector_fallback import DetectorFallback
+from fusion_server.services.ledger_checkpoint import LedgerCheckpoint
+from fusion_server.services.clip_checkpoint import ClipCheckpoint
+from fusion_server.services.power_manager import PowerManager
 from fusion_server.services.resilience_aggregator import ResilienceAggregator
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     init_db()
+
+    # Initialize checkpoint services
+    ledger_cp = LedgerCheckpoint()
+    clip_cp = ClipCheckpoint()
+
+    # Resume ledger from checkpoint
+    ledger_status = ledger_cp.resume()
+    logger.info(f"Ledger checkpoint: {ledger_status}")
+
+    # Scan for orphaned clips
+    orphans = clip_cp.scan_orphans()
+    if orphans:
+        logger.warning(f"Found {len(orphans)} orphaned clip(s): {orphans}")
+
+    # Initialize aggregator
     aggregator = ResilienceAggregator()
+    aggregator.update_ledger_status(ledger_status.get("status", "ok"))
     set_aggregator(aggregator)
+
+    # Initialize monitors (will be started by their respective owners)
+    detector_fallback = DetectorFallback()
+    power_manager = PowerManager()
+
     yield
     # Shutdown (if needed)
 
