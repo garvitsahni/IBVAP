@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Bell, Lock, User, ShieldCheck, Monitor, Save } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -57,7 +58,13 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-5"
+    >
       <div>
         <div className="flex items-center gap-2">
           <ShieldCheck size={20} className="text-accent" />
@@ -193,6 +200,6 @@ export function SettingsPage() {
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

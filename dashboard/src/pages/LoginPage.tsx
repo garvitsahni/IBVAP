@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, User, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -41,7 +42,13 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full font-sans lg:flex">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="min-h-screen w-full font-sans lg:flex"
+    >
       {/* Hero image panel */}
       <div
         className="relative hidden min-h-screen w-1/2 overflow-hidden bg-cover bg-center bg-no-repeat lg:block"
@@ -197,6 +204,6 @@ export function LoginPage() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

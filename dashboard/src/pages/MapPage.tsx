@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { MapPin, Camera, ShieldCheck, Navigation } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polygon, Circle } from 'react-leaflet';
 import L from 'leaflet';
@@ -80,7 +81,13 @@ export function MapPage() {
   const alerts = cameras.filter((c) => c.status === 'Alert').length;
 
   return (
-    <div className="space-y-5">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-5"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -228,6 +235,6 @@ export function MapPage() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

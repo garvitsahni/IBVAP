@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { AlertFeed } from '@/components/alert/AlertFeed';
 import { AlertDetailPanel } from '@/components/alert/AlertDetailPanel';
 import { api } from '@/services/api';
@@ -48,7 +49,13 @@ export function AlertsPage() {
   const selectedAlert = alerts.find((a) => a.id === selectedAlertId) || null;
 
   return (
-    <div className="space-y-4">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-4"
+    >
       <div>
         <h1 className="text-lg font-semibold text-text-primary">Alerts</h1>
         <p className="text-sm text-text-secondary">
@@ -77,6 +84,6 @@ export function AlertsPage() {
         alert={selectedAlert}
         onClose={() => setSelectedAlertId(null)}
       />
-    </div>
+    </motion.div>
   );
 }

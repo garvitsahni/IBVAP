@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import EventFilters from '@/components/EventFilters';
 import EventTable from '@/components/event/EventTable';
 import StatsPanel from '@/components/event/StatsPanel';
@@ -83,7 +84,13 @@ export function EventHistoryPage() {
   }, [events]);
 
   return (
-    <div className="space-y-4">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-4"
+    >
       <div>
         <h1 className="text-lg font-semibold text-text-primary">Event History</h1>
         <p className="text-sm text-text-secondary">Past detections across all cameras</p>
@@ -117,6 +124,6 @@ export function EventHistoryPage() {
         alert={selectedEvent as unknown as Record<string, unknown> | null}
         onClose={() => setSelectedEventId(null)}
       />
-    </div>
+    </motion.div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { Camera, Video, VideoOff, AlertTriangle } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
 import CameraGrid from '@/components/camera/CameraGrid';
@@ -119,7 +120,13 @@ export function DashboardPage() {
   const selectedAlert = alerts.find((a) => a.id === selectedAlertId) || null;
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6"
+    >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard icon={Camera} label="Total Cameras" value={cameras.length} tone="primary" />
         <StatCard icon={Video} label="Online" value={onlineCount} tone="success" />
@@ -172,6 +179,6 @@ export function DashboardPage() {
       />
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-    </div>
+    </motion.div>
   );
 }
