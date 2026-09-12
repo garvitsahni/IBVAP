@@ -1,4 +1,3 @@
-import { AnimatedList } from "@/registry/magicui/animated-list"
 import { AlertItem } from "./AlertItem"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { Inbox } from "lucide-react"
@@ -24,17 +23,15 @@ export function AlertFeed({ alerts, selectedId, onSelect }: AlertFeedProps) {
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <AnimatedList>
-        {alerts.map((alert) => (
-          <AlertItem
-            key={alert.id}
-            alert={alert}
-            isSelected={alert.id === selectedId}
-            onClick={() => onSelect?.(alert)}
-          />
-        ))}
-      </AnimatedList>
+    <div className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
+      {alerts.map((alert) => (
+        <AlertItem
+          key={alert.id}
+          alert={alert}
+          isSelected={alert.id === selectedId}
+          onClick={() => onSelect?.(alert)}
+        />
+      ))}
     </div>
   )
 }

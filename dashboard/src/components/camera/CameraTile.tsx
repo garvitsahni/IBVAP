@@ -1,5 +1,4 @@
-import { BorderBeam } from "@/registry/magicui/border-beam"
-import { Camera, Wifi, WifiOff } from "lucide-react"
+import { Camera, WifiOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface CameraTileProps {
@@ -9,38 +8,61 @@ interface CameraTileProps {
 
 export function CameraTile({ camera, onClick }: CameraTileProps) {
   const isOnline = camera.status === "online"
+  const isDegraded = camera.status === "degraded"
+
   return (
     <div
       onClick={onClick}
       className={cn(
-        "relative cursor-pointer overflow-hidden rounded-xl border border-border bg-surface aspect-video",
-        "transition-all hover:border-accent/50 hover:shadow-lg hover:shadow-accent/5",
+        "relative cursor-pointer overflow-hidden rounded-lg border bg-surface aspect-video",
+        "transition-all duration-200",
+        isOnline && "border-border hover:border-accent/40",
+        !isOnline && "border-border opacity-60",
       )}
     >
+      {/* Feed background */}
       {isOnline ? (
-        <div className="absolute inset-0 bg-gradient-to-br from-surface-2 to-surface-3" />
+        <div className="absolute inset-0 bg-surface-2">
+          {/* Scanline effect */}
+          <div className="absolute inset-0 opacity-[0.03]" style={{
+            backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 4px)"
+          }} />
+          {/* Center crosshair */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="h-px w-8 bg-accent/20" />
+            <div className="absolute left-1/2 top-1/2 h-8 w-px -translate-x-1/2 -translate-y-1/2 bg-accent/20" />
+          </div>
+        </div>
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-surface-2">
-          <WifiOff className="h-8 w-8 text-text-muted" />
-          <span className="ml-2 text-sm text-text-muted">Signal lost</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-2">
+          <WifiOff className="mb-1 h-5 w-5 text-text-muted/50" />
+          <span className="text-[10px] text-text-muted">No Signal</span>
         </div>
       )}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg/80 to-transparent p-3">
-        <div className="flex items-center gap-2">
-          <Camera className="h-4 w-4 text-text-secondary" />
-          <span className="text-sm font-medium text-text">{camera.name}</span>
+
+      {/* Bottom info bar */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg/90 to-transparent p-2.5 pt-6">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <p className="truncate text-[12px] font-medium text-text-primary">{camera.name}</p>
+            <p className="font-mono text-[10px] text-text-muted">{camera.id}</p>
+          </div>
+          {isOnline && (
+            <div className={cn(
+              "h-1.5 w-1.5 rounded-full shrink-0",
+              isOnline && "bg-status-online",
+              isDegraded && "bg-status-degraded",
+            )} />
+          )}
         </div>
-        <span className="font-mono text-xs text-text-muted">{camera.id}</span>
       </div>
-      {isOnline && (
-        <div className="absolute top-3 right-3">
-          <span className="flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-status-online opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-status-online" />
-          </span>
-        </div>
-      )}
-      {isOnline && <BorderBeam duration={6} size={200} className="from-transparent via-status-online/30 to-transparent" />}
+
+      {/* Top-left camera index */}
+      <div className="absolute left-2 top-2">
+        <span className="font-mono text-[10px] text-text-muted/60">
+          CAM-{camera.id.slice(-2).toUpperCase()}
+        </span>
+      </div>
     </div>
   )
 }

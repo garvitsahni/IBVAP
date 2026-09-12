@@ -1,5 +1,3 @@
-import { NumberTicker } from '@/registry/magicui/number-ticker';
-
 interface Event {
   cameraId: string;
   severity: string;
@@ -19,11 +17,11 @@ function BarChartSimple({ data }: { data: { label: string; value: number }[] }) 
           <span className="w-20 truncate text-text-muted">{d.label}</span>
           <div className="flex-1 h-4 bg-surface-2 rounded overflow-hidden">
             <div
-              className="h-full bg-accent rounded"
+              className="h-full bg-accent/60 rounded"
               style={{ width: `${(d.value / max) * 100}%` }}
             />
           </div>
-          <span className="w-8 text-right text-text-muted">{d.value}</span>
+          <span className="w-8 text-right font-mono text-text-muted">{d.value}</span>
         </div>
       ))}
     </div>
@@ -41,26 +39,18 @@ export default function StatsPanel({ events }: StatsPanelProps) {
 
   const falsePositives = events.filter((e) => e.status === 'false_positive').length;
   const falsePositiveRate = events.length ? Math.round((falsePositives / events.length) * 100) : 0;
-
   const critical = events.filter((e) => e.severity === 'critical').length;
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
-        <StatCard label="Total Events">
-          <NumberTicker value={events.length} className="text-2xl font-bold text-text" />
-        </StatCard>
-        <StatCard label="Critical">
-          <NumberTicker value={critical} className="text-2xl font-bold text-severity-critical" />
-        </StatCard>
-        <StatCard label="False Positive Rate">
-          <NumberTicker value={falsePositiveRate} className="text-2xl font-bold text-severity-medium" />
-          <span className="text-2xl font-bold text-severity-medium">%</span>
-        </StatCard>
+        <StatCard label="Total Events" value={events.length} />
+        <StatCard label="Critical" value={critical} />
+        <StatCard label="FP Rate" value={`${falsePositiveRate}%`} />
       </div>
 
       <div className="rounded-md border border-border bg-surface p-3">
-        <h3 className="mb-3 text-xs font-medium text-text-muted">Detections per Camera</h3>
+        <h3 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-text-muted">By Camera</h3>
         {detectionsByCamera.length === 0 ? (
           <p className="text-xs text-text-muted">No events in range.</p>
         ) : (
@@ -71,11 +61,11 @@ export default function StatsPanel({ events }: StatsPanelProps) {
   );
 }
 
-function StatCard({ label, children }: { label: string; children: React.ReactNode }) {
+function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-md border border-border bg-surface p-3">
-      <p className="mb-1 text-[10px] text-text-muted">{label}</p>
-      <div className="flex items-baseline gap-0.5">{children}</div>
+      <p className="text-[10px] font-medium uppercase tracking-wider text-text-muted">{label}</p>
+      <p className="font-display text-xl font-semibold text-text-primary">{value}</p>
     </div>
   );
 }
