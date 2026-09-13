@@ -75,7 +75,7 @@ def _get_ocr():
                 try:
                     import easyocr
                     _ocr_reader = easyocr.Reader(['en'], gpu=False)
-                    logger.info("EasyOCR loaded for plate reading")
+                    logger.info("[PLATE OCR] EasyOCR engine loaded and ready")
                 except Exception as e:
                     logger.warning(f"EasyOCR not available: {e}")
                     _ocr_reader = False  # sentinel — don't retry
@@ -127,6 +127,22 @@ def _run_yolo(frame, conf_threshold: float) -> List[DetectionResult]:
             plate_text = None
             if cls_id in VEHICLE_CLASSES:
                 plate_text = _read_plate(frame, x1, y1, x2, y2)
+                if plate_text:
+                    logger.info(f"[PLATE READ] {CLASS_NAMES.get(cls_id)} -> '{plate_text}'")
+                    try:
+                        import asyncio
+                        from fusion_server.services.broadcaster import get_broadcaster
+                        broadcaster = get_broadcaster()
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.ensure_future(broadcaster.broadcast_plate_read({
+                                "camera_id": req.camera_id,
+                                "plate_text": plate_text,
+                                "class_name": CLASS_NAMES.get(cls_id),
+                                "confidence": round(conf, 3),
+                            }))
+                    except Exception:
+                        pass  # Never block detection on broadcast failure
             dets.append(DetectionResult(
                 bbox=BBoxResponse(x1=x1, y1=y1, x2=x2, y2=y2),
                 confidence=round(conf, 3),

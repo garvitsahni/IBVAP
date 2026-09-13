@@ -86,6 +86,11 @@ class SSEBroadcaster:
         event = {"event": "detection", "data": json.dumps(detection_data)}
         await self._broadcast(event)
 
+    async def broadcast_plate_read(self, plate_data: dict) -> None:
+        """Broadcast a plate_read event when ANPR reads a plate."""
+        event = {"event": "plate_read", "data": json.dumps(plate_data)}
+        await self._broadcast(event)
+
     async def _broadcast(self, event: dict) -> None:
         """Send event to all subscribers, removing disconnected ones."""
         dead = []

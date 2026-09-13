@@ -62,9 +62,11 @@ export function DashboardPage() {
   const [alerts, setAlerts] = useState<DashboardAlert[]>([]);
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<DashboardAlert[]>([]);
+  const [plateNotifications, setPlateNotifications] = useState<{id: number; plate: string; camera: string}[]>([]);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   const [initialLoading, setInitialLoading] = useState(true);
   const knownAlertIds = useRef(new Set<string>());
+  const plateNotifId = useRef(0);
 
   useEffect(() => {
     Promise.all([
@@ -104,6 +106,15 @@ export function DashboardPage() {
       );
     });
 
+    client.on('plate_read', (data) => {
+      const plate = data as { plate_text: string; camera_id: string; class_name: string };
+      const id = ++plateNotifId.current;
+      setPlateNotifications((prev) => [...prev, { id, plate: plate.plate_text, camera: plate.camera_id }].slice(-5));
+      setTimeout(() => {
+        setPlateNotifications((prev) => prev.filter((n) => n.id !== id));
+      }, 5000);
+    });
+
     setConnectionStatus('live');
 
     return () => {
@@ -123,6 +134,23 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-5">
+      {/* Plate Read Notifications */}
+      {plateNotifications.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+          {plateNotifications.map((n) => (
+            <div
+              key={n.id}
+              className="flex items-center gap-2 rounded-md border border-severity-high/30 bg-surface px-3 py-2 shadow-lg"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-severity-high animate-pulse" />
+              <span className="text-[11px] font-medium text-text-muted">Plate detected</span>
+              <span className="font-mono text-[12px] font-bold text-severity-high tracking-wider">{n.plate}</span>
+              <span className="text-[10px] text-text-muted">{n.camera}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
