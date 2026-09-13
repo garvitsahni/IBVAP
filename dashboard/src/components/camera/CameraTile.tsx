@@ -1,17 +1,14 @@
 import { WifiOff } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { WebcamFeed } from "./WebcamFeed"
 
 interface CameraTileProps {
-  camera: { id: string; name: string; status: "online" | "offline" | "degraded"; lastSeen?: string; sourceType?: string }
-  isMain?: boolean
+  camera: { id: string; name: string; status: "online" | "offline" | "degraded"; lastSeen?: string }
   onClick?: () => void
 }
 
-export function CameraTile({ camera, isMain, onClick }: CameraTileProps) {
+export function CameraTile({ camera, onClick }: CameraTileProps) {
   const isOnline = camera.status === "online"
   const isDegraded = camera.status === "degraded"
-  const showWebcam = isMain && isOnline
 
   return (
     <div
@@ -19,14 +16,11 @@ export function CameraTile({ camera, isMain, onClick }: CameraTileProps) {
       className={cn(
         "relative overflow-hidden rounded-lg border bg-surface aspect-video",
         "transition-all duration-200",
-        isMain && "col-span-2 row-span-2 aspect-auto",
         isOnline && "border-border hover:border-accent/30",
         !isOnline && "border-border opacity-60",
       )}
     >
-      {showWebcam ? (
-        <WebcamFeed />
-      ) : isOnline ? (
+      {isOnline ? (
         <div className="absolute inset-0 bg-surface-2">
           <div className="absolute inset-0 opacity-[0.03]" style={{
             backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 4px)"
@@ -50,13 +44,12 @@ export function CameraTile({ camera, isMain, onClick }: CameraTileProps) {
             <p className="truncate text-[12px] font-medium text-text-primary">{camera.name}</p>
             <p className="font-mono text-[10px] text-text-muted">{camera.id}</p>
           </div>
-          {isOnline && (
-            <div className={cn(
-              "h-1.5 w-1.5 rounded-full shrink-0",
-              isOnline && "bg-status-online",
-              isDegraded && "bg-status-degraded",
-            )} />
-          )}
+          <div className={cn(
+            "h-1.5 w-1.5 rounded-full shrink-0",
+            isOnline && "bg-status-online",
+            isDegraded && "bg-status-degraded",
+            !isOnline && "bg-text-muted",
+          )} />
         </div>
       </div>
 

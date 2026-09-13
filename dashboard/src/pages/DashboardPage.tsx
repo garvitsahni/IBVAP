@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Camera, Video, VideoOff, AlertTriangle } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
 import CameraGrid from '@/components/camera/CameraGrid';
+import { WebcamFeed } from '@/components/camera/WebcamFeed';
 import { AlertFeed } from '@/components/alert/AlertFeed';
 import { AlertDetailPanel } from '@/components/alert/AlertDetailPanel';
 import ConnectionStatus from '@/components/event/ConnectionStatus';
@@ -137,11 +138,25 @@ export function DashboardPage() {
         <StatCard icon={AlertTriangle} label="Alerts" value={activeAlertCount} tone="danger" />
       </div>
 
+      {/* Live Webcam */}
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-text-muted">Live Feed</h2>
+          <span className="flex items-center gap-1.5 text-[11px] text-text-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-status-online" />
+            Webcam
+          </span>
+        </div>
+        <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-surface">
+          <WebcamFeed />
+        </div>
+      </div>
+
       {/* Main Content */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
         <div className="min-w-0">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-text-muted">Camera Feeds</h2>
+            <h2 className="text-xs font-medium uppercase tracking-wider text-text-muted">Camera Network</h2>
           </div>
           {initialLoading ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">

@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState, useCallback } from "react";
-import { api } from "../../services/api";
+import { api } from "@/services/api";
 import { DetectionOverlay, type LiveDetection } from "./DetectionOverlay";
 
 const DETECT_INTERVAL_MS = 500;

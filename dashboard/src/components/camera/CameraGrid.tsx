@@ -23,8 +23,8 @@ export default function CameraGrid({ cameras }: CameraGridProps) {
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-      {cameras.map((camera, i) => (
-        <CameraTile key={camera.id} camera={camera} isMain={i === 0} />
+      {cameras.map((camera) => (
+        <CameraTile key={camera.id} camera={camera} />
       ))}
     </div>
   );
