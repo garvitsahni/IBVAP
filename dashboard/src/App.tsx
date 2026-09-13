@@ -16,10 +16,9 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="login" element={<LoginPage />} />
         <Route path="/" element={<ProtectedRoute><ConsoleLayout /></ProtectedRoute>}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
+          <Route index element={<DashboardPage />} />
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="history" element={<EventHistoryPage />} />
           <Route path="map" element={<MapPage />} />
@@ -33,7 +32,7 @@ function AnimatedRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/dashboard">
       <AuthProvider>
         <AnimatedRoutes />
       </AuthProvider>

@@ -11,11 +11,11 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/alerts', label: 'Alerts', icon: Bell },
-  { to: '/history', label: 'History', icon: History },
-  { to: '/map', label: 'Map', icon: Map },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: 'alerts', label: 'Alerts', icon: Bell },
+  { to: 'history', label: 'History', icon: History },
+  { to: 'map', label: 'Map', icon: Map },
+  { to: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export function Sidebar() {

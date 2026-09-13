@@ -15,7 +15,7 @@ export function NotFound() {
       <p className="mt-2 text-sm text-text-secondary">
         The screen you're looking for doesn't exist or may have moved.
       </p>
-      <Link to="/dashboard">
+      <Link to="/">
         <Button className="mt-6">Back to dashboard</Button>
       </Link>
     </motion.div>

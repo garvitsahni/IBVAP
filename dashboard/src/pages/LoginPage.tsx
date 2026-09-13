@@ -14,7 +14,7 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const redirectTo = (location.state as { from?: string })?.from || '/dashboard';
+  const redirectTo = (location.state as { from?: string })?.from || '/';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

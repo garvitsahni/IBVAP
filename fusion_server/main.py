@@ -1,10 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from fusion_server.db.session import init_db
 from fusion_server.api import events, alerts, footprint, watchlist
-from fusion_server.api.routes import cameras, stream, streams, rois, plates, dashboard, ledger, clips, coverage, detect
+from fusion_server.api.routes import cameras, streams, rois, plates, dashboard, ledger, clips, coverage, detect
 from fusion_server.api.routes.system import router as system_router, set_aggregator
 from fusion_server.services.camera_offline_monitor import CameraOfflineMonitor
 from fusion_server.services.detector_fallback import DetectorFallback
@@ -222,14 +222,31 @@ async def test_noop_pipeline():
 # Serve static frontend builds
 import os
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+
+class SPAStaticFiles(StaticFiles):
+    """StaticFiles subclass that falls back to index.html for SPA routing."""
+
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except (StarletteHTTPException, HTTPException) as exc:
+            if exc.status_code == 404 and scope["type"] == "http":
+                index = os.path.join(self.directory, "index.html")
+                if os.path.isfile(index):
+                    return FileResponse(index)
+            raise
+
 
 dashboard_build = os.path.join(os.path.dirname(__file__), "..", "dashboard", "dist")
 if os.path.isdir(dashboard_build):
-    app.mount("/dashboard", StaticFiles(directory=dashboard_build, html=True), name="dashboard")
+    app.mount("/dashboard", SPAStaticFiles(directory=dashboard_build, html=True), name="dashboard")
 
 patrol_build = os.path.join(os.path.dirname(__file__), "..", "patrol_app", "dist")
 if os.path.isdir(patrol_build):
-    app.mount("/patrol", StaticFiles(directory=patrol_build, html=True), name="patrol")
+    app.mount("/patrol", SPAStaticFiles(directory=patrol_build, html=True), name="patrol")
 
 
 if __name__ == "__main__":
