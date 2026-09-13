@@ -41,7 +41,7 @@ class AlertLedger:
         """Compute and set hash chain for an alert, then commit."""
         previous_hash = self._get_last_alert_hash(db)
 
-        timestamp_str = alert.timestamp.isoformat()
+        timestamp_str = alert.timestamp.replace(tzinfo=None).isoformat()
         hash_value = self.compute_alert_hash(
             alert.alert_id,
             alert.object_id,

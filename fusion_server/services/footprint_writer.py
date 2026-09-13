@@ -72,7 +72,7 @@ class FootprintChainWriter:
             if event_type != "first_seen":
                 event_type = "first_seen"
 
-        timestamp_str = timestamp.isoformat()
+        timestamp_str = timestamp.replace(tzinfo=None).isoformat()
         hash_value = self._compute_hash(
             object_id, camera_id, timestamp_str, event_type, previous_hash
         )
