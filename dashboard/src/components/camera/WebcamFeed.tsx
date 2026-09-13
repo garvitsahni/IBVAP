@@ -19,52 +19,21 @@ export function WebcamFeed() {
     if (!video) return;
     let stream: MediaStream | null = null;
 
-    // Try to boost exposure for low-light via advanced constraints
     navigator.mediaDevices
       .getUserMedia({
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: "environment",
-          // Advanced constraints for low-light boost (supported on some webcams)
-          advanced: [
-            { exposureCompensation: 2.0 },
-            { exposureMode: "continuous" },
-            { whiteBalanceMode: "continuous" },
-            { iso: 800 },
-          ] as any[],
         },
         audio: false,
       })
       .then((s) => {
         stream = s;
         video.srcObject = s;
-        // Boost and periodically re-apply to fight auto-exposure
-        const track = s.getVideoTracks()[0];
-        if (track) {
-          const applyBoost = () => {
-            const caps = track.getCapabilities?.() as any ?? {};
-            const constraints: any[] = [];
-            if (caps.exposureCompensation) {
-              constraints.push({ exposureCompensation: caps.exposureCompensation.max ?? 2.0 });
-            }
-            if (caps.iso) {
-              constraints.push({ iso: caps.iso.max ?? 800 });
-            }
-            if (constraints.length > 0) {
-              track.applyConstraints({ advanced: constraints }).catch(() => {});
-            }
-          };
-          applyBoost();
-          // Re-apply every 2 seconds to prevent auto-exposure override
-          const boostInterval = setInterval(applyBoost, 2000);
-          // Clear interval on stream stop
-          track.addEventListener("ended", () => clearInterval(boostInterval));
-        }
         setStreaming(true);
       })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Camera access denied");
+      .catch(() => {
+        setError("Camera access denied or unavailable");
       });
     return () => { if (stream) stream.getTracks().forEach((t) => t.stop()); };
   }, []);
@@ -108,7 +77,12 @@ export function WebcamFeed() {
 
   if (error) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-surface-0 text-text-muted gap-2">
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-2 text-text-muted gap-2">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+          <circle cx="12" cy="13" r="3"/>
+          <line x1="2" y1="2" x2="22" y2="22"/>
+        </svg>
         <span className="text-[11px]">{error}</span>
       </div>
     );
