@@ -45,6 +45,7 @@ class AlertResponse(BaseModel):
     clip_path: Optional[str] = None
     ai_explanation: Optional[str] = None
     trajectory_projection: Optional[dict] = None
+    plate_text: Optional[str] = None
     footprint_entry_id: Optional[int] = None
     created_at: datetime
     enriched_at: Optional[datetime] = None

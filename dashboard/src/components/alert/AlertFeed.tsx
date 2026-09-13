@@ -9,6 +9,7 @@ interface Alert {
   cameraId: string
   timestamp: string
   status: string
+  plateText?: string | null
 }
 
 interface AlertFeedProps {

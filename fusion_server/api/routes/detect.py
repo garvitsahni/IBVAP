@@ -16,6 +16,10 @@ router = APIRouter(prefix="/api/v1/detect", tags=["detect"])
 _model = None
 _model_lock = __import__("threading").Lock()
 
+_ocr_reader = None
+_ocr_lock = __import__("threading").Lock()
+
+VEHICLE_CLASSES = {2, 3, 5, 7}  # car, motorcycle, bus, truck
 TARGET_CLASSES = {0, 2, 3, 5, 7}
 CLASS_NAMES = {0: "person", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
 
@@ -38,6 +42,7 @@ class DetectionResult(BaseModel):
     confidence: float
     class_name: str
     class_id: int
+    plate_text: str | None = None
 
 
 class DetectResponse(BaseModel):
@@ -60,6 +65,21 @@ def _get_model():
                 _model = YOLO("yolov8s.pt")
                 logger.info("YOLOv8s loaded")
     return _model
+
+
+def _get_ocr():
+    global _ocr_reader
+    if _ocr_reader is None:
+        with _ocr_lock:
+            if _ocr_reader is None:
+                try:
+                    import easyocr
+                    _ocr_reader = easyocr.Reader(['en'], gpu=False)
+                    logger.info("EasyOCR loaded for plate reading")
+                except Exception as e:
+                    logger.warning(f"EasyOCR not available: {e}")
+                    _ocr_reader = False  # sentinel — don't retry
+    return _ocr_reader if _ocr_reader is not False else None
 
 
 def _get_brightness(frame) -> float:
@@ -104,13 +124,51 @@ def _run_yolo(frame, conf_threshold: float) -> List[DetectionResult]:
             if conf < conf_threshold:
                 continue
             x1, y1, x2, y2 = box.xyxy[0].tolist()
+            plate_text = None
+            if cls_id in VEHICLE_CLASSES:
+                plate_text = _read_plate(frame, x1, y1, x2, y2)
             dets.append(DetectionResult(
                 bbox=BBoxResponse(x1=x1, y1=y1, x2=x2, y2=y2),
                 confidence=round(conf, 3),
                 class_name=CLASS_NAMES.get(cls_id, "unknown"),
                 class_id=cls_id,
+                plate_text=plate_text,
             ))
     return dets
+
+
+def _read_plate(frame, x1, y1, x2, y2) -> str | None:
+    """Crop vehicle region and run OCR to read plate text."""
+    import cv2
+    ocr = _get_ocr()
+    if ocr is None:
+        return None
+    try:
+        h, w = frame.shape[:2]
+        ix1, iy1 = max(0, int(x1)), max(0, int(y1))
+        ix2, iy2 = min(w, int(x2)), min(h, int(y2))
+        crop = frame[iy1:iy2, ix1:ix2]
+        if crop.size == 0:
+            return None
+        # Enhance contrast for plate readability
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(gray)
+        results = ocr.readtext(enhanced)
+        if not results:
+            return None
+        # Filter for plate-like text (2-12 chars, alphanumeric)
+        import re
+        candidates = []
+        for _, text, conf in results:
+            cleaned = re.sub(r'[^A-Z0-9]', '', text.upper())
+            if 2 <= len(cleaned) <= 12 and conf > 0.3:
+                candidates.append(cleaned)
+        if candidates:
+            return max(candidates, key=len)
+    except Exception as e:
+        logger.debug(f"Plate OCR failed: {e}")
+    return None
 
 
 def _dedup(dets: List[DetectionResult], iou_thresh=0.4) -> List[DetectionResult]:

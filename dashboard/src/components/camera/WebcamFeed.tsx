@@ -63,6 +63,7 @@ export function WebcamFeed() {
         bbox: d.bbox,
         confidence: d.confidence,
         timestamp: new Date().toISOString(),
+        plate_text: (d as any).plate_text || null,
       })));
     } catch {
       // skip

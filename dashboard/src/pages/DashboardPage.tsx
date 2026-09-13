@@ -18,6 +18,7 @@ interface DashboardAlert {
   cameraId: string;
   timestamp: string;
   status: string;
+  plateText?: string | null;
 }
 
 interface DashboardCamera {
@@ -43,6 +44,7 @@ function mapApiAlert(raw: ApiAlert): DashboardAlert {
     cameraId: raw.camera_id,
     timestamp: raw.timestamp,
     status: raw.status,
+    plateText: raw.plate_text || null,
   };
 }
 

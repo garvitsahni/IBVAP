@@ -77,6 +77,7 @@ class Alert(Base):
     clip_path = Column(String(512), nullable=True)
     ai_explanation = Column(Text, nullable=True)
     trajectory_projection = Column(JSON, nullable=True)
+    plate_text = Column(String(32), nullable=True)
     footprint_entry_id = Column(BigInteger, ForeignKey("footprint_entries.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     enriched_at = Column(DateTime(timezone=True), nullable=True)

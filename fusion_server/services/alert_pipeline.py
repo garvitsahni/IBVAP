@@ -196,6 +196,7 @@ class AlertPipeline:
                         "reason": alert.reason,
                         "threat_score": alert.threat_score,
                         "threat_level": get_threat_level(alert.threat_score),
+                        "plate_text": alert.plate_text,
                         "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, "isoformat") else str(alert.timestamp),
                     })
                 except Exception:

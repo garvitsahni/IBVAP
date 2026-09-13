@@ -187,6 +187,7 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
             reason="watchlist_match",
             status="fired",
             threat_score=score,
+            plate_text=event.plate_text,
             ai_explanation=f"Matched watchlist entry '{final_match['reference_id']}' with similarity {final_match['similarity']}",
         )
         db.add(alert)

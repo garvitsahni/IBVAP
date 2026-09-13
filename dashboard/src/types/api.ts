@@ -32,6 +32,7 @@ export interface Alert {
   clip_path: string | null;
   ai_explanation: string | null;
   trajectory_projection: unknown;
+  plate_text: string | null;
   footprint_entry_id: number | null;
   created_at: string;
   enriched_at: string | null;

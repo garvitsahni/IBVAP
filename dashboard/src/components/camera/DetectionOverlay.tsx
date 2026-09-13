@@ -9,6 +9,7 @@ export interface LiveDetection {
   bbox: { x1: number; y1: number; x2: number; y2: number };
   confidence: number;
   timestamp: string;
+  plate_text?: string | null;
 }
 
 interface ScaledDetection extends LiveDetection {
@@ -113,6 +114,7 @@ export function DetectionOverlay({ cameraId, detections: propDetections, videoWi
     >
       {/* Boxes */}
       {scaled.map((det, i) => {
+        const isVehicle = det.object_type !== "person";
         const color = det.object_type === "person" ? "#34d399" : "#fbbf24";
         const conf = Math.round(det.confidence * 100);
         return (
@@ -143,8 +145,27 @@ export function DetectionOverlay({ cameraId, detections: propDetections, videoWi
                 whiteSpace: "nowrap",
               }}
             >
-              {det.object_type === "person" ? "Person" : "Vehicle"} {conf}%
+              {isVehicle ? "Vehicle" : "Person"} {conf}%
             </div>
+            {isVehicle && det.plate_text && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: -20,
+                  left: 0,
+                  padding: "2px 8px",
+                  background: "#fbbf24",
+                  color: "#000",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 3,
+                  whiteSpace: "nowrap",
+                  letterSpacing: 1,
+                }}
+              >
+                {det.plate_text}
+              </div>
+            )}
           </div>
         );
       })}

@@ -10,6 +10,7 @@ interface AlertItemProps {
     cameraId: string
     timestamp: string
     status: string
+    plateText?: string | null
   }
   isSelected?: boolean
   onClick?: () => void
@@ -52,6 +53,11 @@ export function AlertItem({ alert, isSelected, onClick }: AlertItemProps) {
         <span className="text-border-subtle">·</span>
         <span>{timeAgo(alert.timestamp)}</span>
       </div>
+      {alert.plateText && (
+        <div className="mt-1 text-[11px] font-mono font-semibold text-severity-high tracking-wider">
+          PLATE: {alert.plateText}
+        </div>
+      )}
     </div>
   )
 }

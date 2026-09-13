@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion"
-import { X, MapPin, Clock, AlertTriangle, Camera } from "lucide-react"
+import { X, MapPin, Clock, AlertTriangle, Camera, Hash } from "lucide-react"
 import { StatusBadge } from "@/components/ui/StatusBadge"
 
 interface Alert {
@@ -9,6 +9,7 @@ interface Alert {
   cameraId: string
   timestamp: string
   status: string
+  plateText?: string | null
 }
 
 interface AlertDetailPanelProps {
@@ -89,6 +90,15 @@ export function AlertDetailPanel({ alert, onClose, onAcknowledge, onEscalate, on
                   <span className="text-text-muted">Time</span>
                   <span className="ml-auto text-text-primary">{formatTime(alert.timestamp)}</span>
                 </div>
+                {alert.plateText && (
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <Hash size={14} className="text-text-muted shrink-0" />
+                    <span className="text-text-muted">Plate</span>
+                    <span className="ml-auto font-mono text-severity-high font-semibold tracking-wider">
+                      {alert.plateText}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Divider */}
