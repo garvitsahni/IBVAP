@@ -138,8 +138,9 @@ def _run_yolo(frame, conf_threshold: float) -> List[DetectionResult]:
 
 
 def _read_plate(frame, x1, y1, x2, y2) -> str | None:
-    """Crop vehicle region and run OCR to read plate text."""
+    """Crop vehicle region, focus on lower-center (plate area), upscale, OCR."""
     import cv2
+    import re
     ocr = _get_ocr()
     if ocr is None:
         return None
@@ -147,28 +148,94 @@ def _read_plate(frame, x1, y1, x2, y2) -> str | None:
         h, w = frame.shape[:2]
         ix1, iy1 = max(0, int(x1)), max(0, int(y1))
         ix2, iy2 = min(w, int(x2)), min(h, int(y2))
-        crop = frame[iy1:iy2, ix1:ix2]
-        if crop.size == 0:
+        vw = ix2 - ix1
+        vh = iy2 - iy1
+        if vw < 20 or vh < 20:
             return None
-        # Enhance contrast for plate readability
-        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
-        results = ocr.readtext(enhanced)
-        if not results:
-            return None
-        # Filter for plate-like text (2-12 chars, alphanumeric)
-        import re
+
         candidates = []
-        for _, text, conf in results:
-            cleaned = re.sub(r'[^A-Z0-9]', '', text.upper())
-            if 2 <= len(cleaned) <= 12 and conf > 0.3:
-                candidates.append(cleaned)
+
+        # --- Strategy 1: Focus on lower-center strip (where plates are) ---
+        plate_y1 = iy1 + int(vh * 0.55)
+        plate_y2 = iy2
+        plate_x1 = ix1 + int(vw * 0.05)
+        plate_x2 = ix2 - int(vw * 0.05)
+        plate_crop = frame[plate_y1:plate_y2, plate_x1:plate_x2]
+        if plate_crop.size > 0:
+            candidates.extend(_ocr_region(plate_crop))
+
+        # --- Strategy 2: Bottom quarter (very tight on bumper area) ---
+        bump_y1 = iy1 + int(vh * 0.7)
+        bump_y2 = iy2
+        bump_crop = frame[bump_y1:bump_y2, ix1:ix2]
+        if bump_crop.size > 0:
+            candidates.extend(_ocr_region(bump_crop))
+
+        # --- Strategy 3: Full vehicle crop (fallback) ---
+        full_crop = frame[iy1:iy2, ix1:ix2]
+        if full_crop.size > 0:
+            candidates.extend(_ocr_region(full_crop))
+
         if candidates:
+            # Prefer longer matches (more chars = more likely a plate)
             return max(candidates, key=len)
     except Exception as e:
         logger.debug(f"Plate OCR failed: {e}")
     return None
+
+
+def _ocr_region(crop_img) -> list:
+    """Run OCR on a cropped region with multiple preprocessing passes. Returns list of plate-like strings."""
+    import cv2
+    import re
+    ocr = _get_ocr()
+    if ocr is None:
+        return []
+
+    ch, cw = crop_img.shape[:2]
+    if ch < 10 or cw < 30:
+        return []
+
+    candidates = []
+
+    # Upscale 4x — plates need big text for OCR
+    scale = 4
+    upscaled = cv2.resize(crop_img, (cw * scale, ch * scale), interpolation=cv2.INTER_CUBIC)
+
+    # Sharpen
+    kernel = np.array([[0,-1,0],[-1,5,-1],[0,-1,0]], dtype=np.float32)
+    sharpened = cv2.filter2D(upscaled, -1, kernel)
+
+    for processed in [upscaled, sharpened]:
+        gray = cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY)
+
+        # CLAHE
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(gray)
+
+        # Otsu threshold
+        _, otsu = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        for img in [enhanced, otsu]:
+            try:
+                results = ocr.readtext(img)
+            except Exception:
+                continue
+            if not results:
+                continue
+            # Combine all detections in reading order (left-to-right, top-to-bottom)
+            sorted_results = sorted(results, key=lambda r: (r[0][0][1], r[0][0][0]))
+            combined = "".join([re.sub(r'[^A-Z0-9]', '', r[1].upper()) for r in sorted_results])
+            if 4 <= len(combined) <= 16:
+                candidates.append(combined)
+
+            # Also check individual detections for short but valid plate fragments
+            for _, text, conf in results:
+                cleaned = re.sub(r'[^A-Z0-9]', '', text.upper())
+                if 4 <= len(cleaned) <= 12 and conf > 0.1:
+                    candidates.append(cleaned)
+
+    return candidates
 
 
 def _dedup(dets: List[DetectionResult], iou_thresh=0.4) -> List[DetectionResult]:
