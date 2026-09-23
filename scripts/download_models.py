@@ -58,7 +58,7 @@ import importlib
 mod = importlib.import_module("torchreid.reid.models.osnet_ain")
 osnet_ain_x1_0 = mod.osnet_ain_x1_0
 
-model = osnet_ain_x1_0(pretrained=False, num_classes=1000)
+model = osnet_ain_x1_0(pretrained=True, num_classes=1000)
 model.eval()
 
 dummy = torch.randn(1, 3, 256, 128)
