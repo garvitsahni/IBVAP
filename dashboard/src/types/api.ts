@@ -31,6 +31,7 @@ export interface Alert {
   threat_score: number;
   clip_path: string | null;
   ai_explanation: string | null;
+  ai_source: string | null;
   trajectory_projection: unknown;
   plate_text: string | null;
   footprint_entry_id: number | null;

@@ -44,6 +44,27 @@ class AIEnrichmentService:
             logger.warning(f"LLaVA enrichment failed: {e}. Using template.")
             return self._template_explanation(alert_data)
 
+    def enrich_with_source(self, alert_data: dict) -> tuple:
+        """
+        Enrich and report the explanation source honestly.
+        Returns (explanation_text, source) where source is
+        'llava-local' when the model produced output, else 'template'.
+        Template output is suffixed with ' [TEMPLATE]' so the dashboard
+        never presents a rule-based string as LLM output (AGENTS.md No Faking).
+        Never raises — falls back to template on any error.
+        """
+        try:
+            text = self._call_llava(alert_data)
+            if self._model is None:
+                return (text + " [TEMPLATE]", "template")
+            return (text, "llava-local")
+        except Exception as e:
+            logger.warning(f"Enrichment failed: {e}. Using template.")
+            try:
+                return (self._template_explanation(alert_data) + " [TEMPLATE]", "template")
+            except Exception:
+                return ("Alert enrichment unavailable. [TEMPLATE]", "template")
+
     def _call_llava(self, alert_data: dict) -> str:
         """Call LLaVA model for explanation generation."""
         self._lazy_init()

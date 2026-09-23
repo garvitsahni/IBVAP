@@ -55,6 +55,7 @@ CREATE TABLE alerts (
     threat_score DOUBLE PRECISION NOT NULL DEFAULT 0.0 CHECK (threat_score >= 0 AND threat_score <= 1),
     clip_path VARCHAR(512),  -- Path to clip in MinIO/local storage
     ai_explanation TEXT,  -- Async AI enrichment
+    ai_source VARCHAR(16),  -- Additive only: 'template' | 'llava-local' | 'ollama-local' | NULL
     trajectory_projection JSONB,  -- Kalman filter projection
     footprint_entry_id BIGINT REFERENCES footprint_entries(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

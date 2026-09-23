@@ -123,6 +123,7 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
   "threat_score": float,
   "clip_path": "string | null",
   "ai_explanation": "string | null",
+  "ai_source": "string | null",
   "trajectory_projection": [[x, y], ...] | null,
   "hash": "string",
   "previous_hash": "string | null",
@@ -165,6 +166,8 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
 - `bbox`: normalized 0-1 coordinates of the detected plate region.
 
 These five contracts are the seams between every team member's workstream. Changing any field requires updating this document and notifying all phase owners.
+
+Additive note (2026-09-23): `Alert.ai_source` (`'template' | 'llava-local' | 'ollama-local' | null`) added alongside `ai_explanation` to distinguish rule-based template fallback (suffixed `[TEMPLATE]`) from real local-LLM output. Nullable/additive only — no existing field renamed or removed. C2 delivery is an opt-in signed POST of the existing Alert JSON (`C2_WEBHOOK_URL`); it introduces no new contract.
 
 ## 6. Deployment Stages
 

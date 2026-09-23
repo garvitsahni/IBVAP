@@ -170,6 +170,7 @@ class AlertPipeline:
         """
         try:
             ai_explanation = ""
+            ai_source = "template"
             if self.enrichment_service is not None:
                 alert_data = {
                     "alert_id": alert.alert_id,
@@ -181,15 +182,67 @@ class AlertPipeline:
                     "trajectory": {"history": trajectory_projection or []},
                 }
                 try:
-                    ai_explanation = self.enrichment_service.enrich(alert_data)
+                    enricher = self.enrichment_service
+                    # Prefer enrich_with_source (honest source label); fall back
+                    # to legacy enrich() for older fakes/mocks in tests.
+                    used_source_method = False
+                    if hasattr(enricher, "enrich_with_source"):
+                        try:
+                            result = enricher.enrich_with_source(alert_data)
+                        except Exception:
+                            result = None
+                        if isinstance(result, (tuple, list)) and len(result) == 2 and isinstance(result[1], str):
+                            ai_explanation, ai_source = result[0], result[1]
+                            used_source_method = True
+                    if not used_source_method and hasattr(enricher, "enrich"):
+                        try:
+                            ai_explanation = enricher.enrich(alert_data)
+                            ai_source = "template"
+                        except Exception:
+                            raise
                 except Exception:
                     logger.exception("AI enrichment failed for alert %s", alert.alert_id)
                     ai_explanation = ""
+                    ai_source = "template"
+
+            # Persist enrichment back to the alert row (new session: this
+            # coroutine runs on the event loop, self.db belongs to the
+            # worker thread that called process()). Never raises.
+            if ai_explanation:
+                try:
+                    from fusion_server.db.session import SessionLocal
+                    from datetime import datetime as _dt
+                    pdb = SessionLocal()
+                    try:
+                        db_alert = pdb.query(Alert).filter(
+                            Alert.alert_id == alert.alert_id
+                        ).first()
+                        if db_alert is not None:
+                            db_alert.ai_explanation = ai_explanation
+                            try:
+                                db_alert.ai_source = ai_source
+                            except Exception:
+                                pass  # column may not exist on older DBs
+                            db_alert.status = "enriched"
+                            db_alert.enriched_at = _dt.utcnow()
+                            pdb.commit()
+                    except Exception:
+                        logger.exception("Enrichment persist failed for alert %s", alert.alert_id)
+                        try:
+                            pdb.rollback()
+                        except Exception:
+                            pass
+                    finally:
+                        try:
+                            pdb.close()
+                        except Exception:
+                            pass
+                except Exception:
+                    logger.exception("Enrichment persist setup failed for alert %s", alert.alert_id)
 
             if self.sse_broadcaster is not None:
                 # Broadcast alert_fired first
-                try:
-                    await self.sse_broadcaster.broadcast_alert_fired({
+                fired_payload = {
                         "alert_id": alert.alert_id,
                         "object_id": alert.object_id,
                         "camera_id": alert.camera_id,
@@ -198,9 +251,20 @@ class AlertPipeline:
                         "threat_level": get_threat_level(alert.threat_score),
                         "plate_text": alert.plate_text,
                         "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, "isoformat") else str(alert.timestamp),
-                    })
+                    }
+                try:
+                    await self.sse_broadcaster.broadcast_alert_fired(fired_payload)
                 except Exception:
                     logger.exception("SSE broadcast_alert_fired failed for alert %s", alert.alert_id)
+
+                # Best-effort C2 push (opt-in via C2_WEBHOOK_URL; never blocks).
+                try:
+                    from fusion_server.services.c2_forwarder import get_c2_forwarder
+                    c2 = get_c2_forwarder()
+                    if c2 is not None and getattr(c2, "enabled", False):
+                        await c2.forward_async(fired_payload)
+                except Exception:
+                    logger.exception("C2 forward failed for alert %s", alert.alert_id)
 
                 # Broadcast alert_enriched if we got an explanation
                 if ai_explanation:

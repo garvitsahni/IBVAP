@@ -76,6 +76,7 @@ class Alert(Base):
     threat_score = Column(Float, nullable=False, default=0.0)
     clip_path = Column(String(512), nullable=True)
     ai_explanation = Column(Text, nullable=True)
+    ai_source = Column(String(16), nullable=True)  # 'template' | 'llava-local' | 'ollama-local' | None
     trajectory_projection = Column(JSON, nullable=True)
     plate_text = Column(String(32), nullable=True)
     footprint_entry_id = Column(BigInteger, ForeignKey("footprint_entries.id"), nullable=True)

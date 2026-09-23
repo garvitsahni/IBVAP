@@ -1,5 +1,7 @@
 """
 Async AI Enrichment Service - Phase 4
+[DEPRECATED placeholder — active path is fusion_server/services/ai_enrichment.py
+ + AlertPipeline._enrich_and_broadcast. Kept for reference only.]
 Non-blocking AI enrichment per ARCHITECTURE.md Rule 4:
 AI enrichment never blocks alert delivery.
 Alert must be visible on dashboard before any LLM/VLM call.
