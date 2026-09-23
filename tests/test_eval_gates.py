@@ -79,3 +79,22 @@ def test_person_reid_footage_gate():
         f"temporal {res['temporal']:.3f} below gate {GATE_TEMPORAL}")
     assert res["margin"] >= GATE_MARGIN, (
         f"margin {res['margin']:.3f} below gate {GATE_MARGIN}")
+
+
+VERI_DIR = EVAL_DIR / "veri-776" / "VeRi"
+
+
+@pytest.mark.skipif(not VERI_DIR.exists(),
+                    reason="data/eval/veri-776/VeRi required for vehicle gate")
+def test_vehicle_reid_veri_gate():
+    """Rank-1 >= 0.60 on VeRi-776 with production preprocessing (200 queries)."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from eval_accuracy import eval_vehicle_veri, GATE_VEHICLE_RANK1
+    res = eval_vehicle_veri(str(REPO_ROOT / "models" / "vehicle_reid.onnx"),
+                            str(VERI_DIR), max_queries=200)
+    print(f"\nvehicle Rank-1={res['rank1']:.3f} queries={res['n_queries']} "
+          f"gallery={res['n_gallery']}")
+    assert res["n_queries"] >= 200, "expected at least 200 queries"
+    assert res["rank1"] >= GATE_VEHICLE_RANK1, (
+        f"Rank-1 {res['rank1']:.3f} below gate {GATE_VEHICLE_RANK1}")

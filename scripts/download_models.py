@@ -241,7 +241,7 @@ def verify_all() -> int:
     expected = {
         "osnet_ain_x1_0.onnx": (1, 3, 256, 128),
         "arcface_r100.onnx": (1, 3, 112, 112),
-        "vehicle_reid.onnx": (1, 3, 224, 224),
+        "vehicle_reid.onnx": (1, 3, 256, 256),
         "plate_detector.onnx": (1, 3, 320, 320),
     }
     print("=" * 60)

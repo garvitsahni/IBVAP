@@ -9,9 +9,15 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Standard Re-ID input size
+# Standard Re-ID input sizes
 REID_INPUT_HEIGHT = 256
 REID_INPUT_WIDTH = 128
+# Vehicle Re-ID (VeRi-776) input size
+VEHICLE_REID_HEIGHT = 256
+VEHICLE_REID_WIDTH = 256
+# ImageNet normalization for VeRi-776
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
+IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
 
 
 class ReIDService:
@@ -71,27 +77,33 @@ class ReIDService:
         except RuntimeError as e:
             logger.warning(f"{e}")
             self._vehicle_session = None
-            self._vehicle_input_h, self._vehicle_input_w = REID_INPUT_HEIGHT, REID_INPUT_WIDTH
+            self._vehicle_input_h, self._vehicle_input_w = VEHICLE_REID_HEIGHT, VEHICLE_REID_WIDTH
         except Exception as e:
             logger.warning(f"Failed to load vehicle ReID model: {e}")
             self._vehicle_session = None
-            self._vehicle_input_h, self._vehicle_input_w = REID_INPUT_HEIGHT, REID_INPUT_WIDTH
+            self._vehicle_input_h, self._vehicle_input_w = VEHICLE_REID_HEIGHT, VEHICLE_REID_WIDTH
 
     def _preprocess_crop(
         self,
         crop: np.ndarray,
         target_h: int = REID_INPUT_HEIGHT,
         target_w: int = REID_INPUT_WIDTH,
+        is_vehicle: bool = False,
     ) -> np.ndarray:
         """
         Preprocess crop for Re-ID inference.
         Input: BGR numpy array (H, W, 3) uint8
-        Output: NCHW float32 array normalized to [0, 1]
+        Output: NCHW float32 array normalized
+        - Person (OSNet): [0, 1]
+        - Vehicle (VeRi-776): ImageNet mean/std normalization
         """
         import cv2
         resized = cv2.resize(crop, (target_w, target_h))
         rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
         blob = rgb.astype(np.float32) / 255.0
+        if is_vehicle:
+            # ImageNet normalization for VeRi-776
+            blob = (blob - IMAGENET_MEAN) / IMAGENET_STD
         blob = blob.transpose(2, 0, 1)  # HWC -> CHW
         blob = np.expand_dims(blob, 0)  # Add batch dimension
         return blob
@@ -112,7 +124,7 @@ class ReIDService:
                 target_h, target_w = self._vehicle_input_h, self._vehicle_input_w
             else:
                 target_h, target_w = self._input_h, self._input_w
-            blob = self._preprocess_crop(crop, target_h, target_w)
+            blob = self._preprocess_crop(crop, target_h, target_w, is_vehicle=is_vehicle)
             outputs = session.run(None, {input_name: blob})
             embedding = outputs[0].flatten()
             # Normalize to unit vector

@@ -25,6 +25,94 @@ sys.path.insert(0, str(REPO_ROOT))
 
 GATE_TEMPORAL = 0.70
 GATE_MARGIN = 0.15
+GATE_VEHICLE_RANK1 = 0.60
+
+
+def parse_veri_name(fname):
+    """VeRi-776 names look like 0002_c002_00030600_0.jpg -> (id, cam)."""
+    base = Path(fname).stem
+    parts = base.split("_")
+    return parts[0], parts[1]
+
+
+def eval_vehicle_veri(model_path, veri_root, max_queries=None, batch=32,
+                      gallery_stride=5, cache_dir=None, imagenet_norm=True):
+    """Rank-1 for vehicle re-ID on VeRi-776 (image_query vs image_test).
+
+    Production preprocessing is resize + ImageNet mean/std (matches
+    reid_service.py vehicle path); imagenet_norm=False is a diagnostic
+    [0,1] variant only. Standard protocol: same-id+same-cam gallery images
+    are junk. Gallery is strided (default every 5th) for CPU-feasible eval;
+    embeddings are cached per model+stride+norm so A/B re-runs are cheap.
+    """
+    import cv2
+    import hashlib
+    import numpy as np
+    from edge.model_runtime import create_session
+
+    root = Path(veri_root)
+    q_files = sorted((root / "image_query").glob("*.jpg"))
+    g_files = sorted((root / "image_test").glob("*.jpg"))[::gallery_stride]
+    if max_queries:
+        q_files = q_files[:max_queries]
+    session = create_session(model_path)
+    in_name = session.get_inputs()[0].name
+    shape = session.get_inputs()[0].shape
+    th, tw = int(shape[2]), int(shape[3])
+
+    cache_key = hashlib.sha1(
+        f"{model_path}|{gallery_stride}|{len(q_files)}|{len(g_files)}|norm={imagenet_norm}".encode()
+    ).hexdigest()[:12]
+    cache_path = (Path(cache_dir) if cache_dir else Path("data/eval")) / \
+        f"veri_embs_{cache_key}.npz"
+    if cache_path.exists():
+        print(f"  loading cached embeddings {cache_path.name}...")
+        cached = np.load(cache_path)
+        q_embs, g_embs = cached["q"], cached["g"]
+    else:
+        def embed_files(files, tag):
+            embs = []
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
+            for i in range(0, len(files), batch):
+                chunk = []
+                for f in files[i:i + batch]:
+                    img = cv2.imread(str(f))
+                    img = cv2.resize(img, (tw, th))
+                    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+                    arr = rgb.transpose(2, 0, 1)
+                    if imagenet_norm:
+                        arr = (arr - mean) / std
+                    chunk.append(arr)
+                out = session.run(None, {in_name: np.stack(chunk).astype(np.float32)})[0]
+                n = np.linalg.norm(out, axis=1, keepdims=True)
+                n[n == 0] = 1.0
+                embs.append(out / n)
+                print(f"  {tag} {min(i + batch, len(files))}/{len(files)}...",
+                      flush=True)
+            return np.concatenate(embs, axis=0)
+
+        q_embs = embed_files(q_files, "query")
+        g_embs = embed_files(g_files, "gallery")
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(cache_path, q=q_embs, g=g_embs)
+
+    q_meta = [parse_veri_name(f.name) for f in q_files]
+    g_meta = [parse_veri_name(f.name) for f in g_files]
+    print(f"  scoring {len(q_files)} queries vs {len(g_files)} gallery...")
+    sims = q_embs @ g_embs.T
+    hits = 0
+    for qi, (qid, qcam) in enumerate(q_meta):
+        order = np.argsort(-sims[qi])
+        for oi in order:
+            gid, gcam = g_meta[oi]
+            if gid == qid and gcam == qcam:
+                continue  # junk
+            if gid == qid:
+                hits += 1
+            break
+    rank1 = hits / len(q_files)
+    return {"rank1": rank1, "n_queries": len(q_files), "n_gallery": len(g_files)}
 
 
 def detect_persons_yolo(model, frame):
@@ -172,11 +260,33 @@ def eval_person_footage(model_path, videos, frames_per_video=25,
 def main() -> int:
     parser = argparse.ArgumentParser(description="IBVAP accuracy evaluation")
     parser.add_argument("--person-footage", action="store_true")
+    parser.add_argument("--vehicle-veri", action="store_true")
     parser.add_argument("--model", default="models/osnet_ain_x1_0.onnx")
     parser.add_argument("--frames", type=int, default=25)
     parser.add_argument("--videos", nargs="*", default=["footage/cam1.mp4",
                                                         "footage/cam2.mp4"])
+    parser.add_argument("--veri-root", default="data/eval/veri-776/VeRi")
+    parser.add_argument("--max-queries", type=int, default=None)
+    parser.add_argument("--imagenet-norm", action="store_true", default=True)
+    parser.add_argument("--no-imagenet-norm", dest="imagenet_norm", action="store_false")
+    parser.add_argument("--batch", type=int, default=32)
     args = parser.parse_args()
+    if args.vehicle_veri:
+        print(f"Evaluating {args.model} on VeRi-776...")
+        try:
+            res = eval_vehicle_veri(str(REPO_ROOT / args.model),
+                                    str(REPO_ROOT / args.veri_root),
+                                    max_queries=args.max_queries,
+                                    batch=args.batch,
+                                    imagenet_norm=args.imagenet_norm)
+        except Exception as e:
+            print(f"  [ERROR] eval failed: {e}")
+            return 1
+        ok = res["rank1"] >= GATE_VEHICLE_RANK1
+        print(f"  [Rank-1={res['rank1']:.3f} (gate>={GATE_VEHICLE_RANK1}, "
+              f"queries={res['n_queries']}, gallery={res['n_gallery']}) "
+              f"[{'PASS' if ok else 'FAIL'}]")
+        return 0 if ok else 1
     if not args.person_footage:
         parser.print_help()
         return 1
