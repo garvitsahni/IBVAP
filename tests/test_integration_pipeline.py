@@ -61,5 +61,7 @@ def test_full_pipeline_synthetic_video():
         assert "embedding" in event and event["embedding"] is None
         assert "confidence" in event
         assert event["object_type"] in ("person", "vehicle")
-        assert len(event["bbox"]) == 4
-        assert all(0 <= v <= 1 for v in event["bbox"])
+        # Contract: bbox is the corner object {x1,y1,x2,y2}, normalized 0-1
+        # (server BBox model rejects the old list form with HTTP 422).
+        assert set(event["bbox"].keys()) == {"x1", "y1", "x2", "y2"}
+        assert all(0 <= v <= 1 for v in event["bbox"].values())

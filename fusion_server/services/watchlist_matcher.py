@@ -6,7 +6,7 @@ import logging
 from typing import Optional, Dict
 from sqlalchemy.orm import Session
 
-from fusion_server.core.watchlist_crypto import decrypt_embedding, get_key
+from fusion_server.core.watchlist_crypto import load_embedding, get_key
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class WatchlistMatcher:
         for entry in entries:
             try:
                 watchlist_emb = np.array(
-                    decrypt_embedding(entry.embedding, key),
+                    load_embedding(entry.embedding, key),
                     dtype=np.float32,
                 )
                 similarity = self._cosine_similarity(face_embedding, watchlist_emb)
@@ -82,7 +82,7 @@ class WatchlistMatcher:
                         "watchlist_type": "face",
                     }
             except Exception as e:
-                logger.warning(f"Failed to decrypt face watchlist entry {entry.id}: {e}")
+                logger.warning(f"Failed to load face watchlist entry {entry.id}: {e}")
                 continue
 
         return best_match
@@ -168,7 +168,7 @@ class WatchlistMatcher:
         for entry in entries:
             try:
                 watchlist_emb = np.array(
-                    decrypt_embedding(entry.embedding, key),
+                    load_embedding(entry.embedding, key),
                     dtype=np.float32,
                 )
                 similarity = self._cosine_similarity(embedding, watchlist_emb)
@@ -180,7 +180,7 @@ class WatchlistMatcher:
                         "watchlist_type": watchlist_type,
                     }
             except Exception as e:
-                logger.warning(f"Failed to decrypt watchlist entry {entry.id}: {e}")
+                logger.warning(f"Failed to load watchlist entry {entry.id}: {e}")
                 continue
 
         return best_match

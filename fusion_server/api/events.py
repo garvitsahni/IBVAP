@@ -1,6 +1,12 @@
 """
 Events API - POST /events from edge nodes
+
+IMPORTANT: synchronous ingestion (DB writes, re-ID matching, footprint ledger,
+watchlist matching, rule engine) runs in the threadpool via run_in_threadpool —
+NEVER directly on the asyncio event loop. SSE broadcasts are scheduled on the
+loop AFTER ingestion returns.
 """
+import asyncio
 import logging
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,6 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from typing import List, Optional
 from datetime import datetime
+from starlette.concurrency import run_in_threadpool
 
 from fusion_server.db.session import get_db
 from fusion_server.db.models import DetectionEvent
@@ -64,15 +71,16 @@ router = APIRouter(prefix="/api/v1/events", tags=["events"])
 EMBEDDING_DIM = 512
 
 
-@router.post("", response_model=DetectionEventResponse, status_code=status.HTTP_201_CREATED)
-async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db)):
-    """Receive detection event from edge node."""
+def _ingest_event(event: "DetectionEventCreate", db: Session) -> dict:
+    """
+    Synchronous event ingestion — DB write, re-ID matching, footprint chain
+    (synchronous ledger write per AGENTS.md Rule 3), watchlist matching, and
+    the deterministic alert pipeline.
+
+    SYNC — must only ever run inside run_in_threadpool, never on the event loop.
+    Returns the created event plus any pipeline handle needed for SSE work.
+    """
     embedding = event.embedding
-    if embedding is not None and len(embedding) != EMBEDDING_DIM:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"embedding must be {EMBEDDING_DIM} dimensions, got {len(embedding)}",
-        )
 
     # Try inserting with new columns; fall back if columns don't exist
     db_event = DetectionEvent(
@@ -150,6 +158,7 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
 
     matcher = WatchlistMatcher()
     final_match = None
+    extra_alerts = []  # alerts created here (not via AlertPipeline) that still need SSE
 
     # Body embedding matching
     if event.embedding is not None:
@@ -193,18 +202,19 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
         db.add(alert)
         alert_ledger = AlertLedger()
         alert_ledger.write_alert_with_hash(db, alert)
+        extra_alerts.append(alert)
 
     # Alert pipeline: rule engine, trajectory, suspicious activity, threat scoring
+    pipeline = None
+    pipeline_result = None
+    event_payload = None
     if object_id is not None:
         from fusion_server.services.alert_pipeline import AlertPipeline
         from fusion_server.services.ai_enrichment import AIEnrichmentService
-        from fusion_server.services.broadcaster import get_broadcaster
 
         enrichment_service = AIEnrichmentService()
-        broadcaster = get_broadcaster()
         pipeline = AlertPipeline(db=db, enrichment_service=enrichment_service)
-        pipeline.set_sse_broadcaster(broadcaster)
-        pipeline.process({
+        event_payload = {
             "camera_id": event.camera_id,
             "object_id": object_id,
             "object_type": event.object_type,
@@ -212,13 +222,79 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
             "track_id": event.track_id,
             "bbox": event.bbox.model_dump(),
             "confidence": event.confidence,
-        })
+        }
+        # Runs in worker thread: no event loop here, so the pipeline's internal
+        # asyncio.create_task (enrichment/broadcast) is skipped — the async
+        # handler schedules it on the loop after this returns.
+        pipeline_result = pipeline.process(event_payload)
+
+    return {
+        "db_event": db_event,
+        "object_id": object_id,
+        "pipeline": pipeline,
+        "pipeline_result": pipeline_result,
+        "event_payload": event_payload,
+        "extra_alerts": extra_alerts,
+    }
+
+
+@router.post("", response_model=DetectionEventResponse, status_code=status.HTTP_201_CREATED)
+async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db)):
+    """Receive detection event from edge node."""
+    embedding = event.embedding
+    if embedding is not None and len(embedding) != EMBEDDING_DIM:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"embedding must be {EMBEDDING_DIM} dimensions, got {len(embedding)}",
+        )
+
+    # All sync ingestion runs in the threadpool so the event loop stays free
+    # for other requests (edge publishes must never queue behind this work).
+    ingest = await run_in_threadpool(_ingest_event, event, db)
+    db_event = ingest["db_event"]
+
+    # Schedule alert enrichment + SSE broadcast on the event loop
+    # (pipeline.process ran in a worker thread and could not create tasks itself).
+    from fusion_server.services.broadcaster import get_broadcaster
+    from fusion_server.core.threat_scoring import get_threat_level
+
+    pipeline = ingest["pipeline"]
+    pipeline_result = ingest["pipeline_result"]
+    if pipeline is not None and pipeline_result:
+        # The pipeline was built in the worker thread without a broadcaster;
+        # inject the singleton here so _enrich_and_broadcast actually delivers
+        # alert_fired/alert_enriched (and C2 forwarder) — it no-ops otherwise.
+        pipeline.set_sse_broadcaster(get_broadcaster())
+        for alert in pipeline_result.get("alerts", []):
+            try:
+                asyncio.ensure_future(pipeline._enrich_and_broadcast(
+                    alert,
+                    ingest["event_payload"],
+                    pipeline_result.get("trajectory_projection") or [],
+                ))
+            except Exception:
+                pass  # Never block alert delivery on broadcast failure
+
+    # Alerts created directly in _ingest_event (watchlist_match) bypass the
+    # AlertPipeline entirely — broadcast them explicitly or they never reach SSE.
+    for alert in ingest.get("extra_alerts") or []:
+        try:
+            asyncio.ensure_future(get_broadcaster().broadcast_alert_fired({
+                "alert_id": alert.alert_id,
+                "object_id": alert.object_id,
+                "camera_id": alert.camera_id,
+                "reason": alert.reason,
+                "threat_score": alert.threat_score,
+                "threat_level": get_threat_level(alert.threat_score),
+                "plate_text": alert.plate_text,
+                "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, "isoformat") else str(alert.timestamp),
+            }))
+        except Exception:
+            pass  # Never block alert delivery on broadcast failure
 
     # Broadcast detection to SSE subscribers (non-blocking)
-    from fusion_server.services.broadcaster import get_broadcaster
     try:
         broadcaster = get_broadcaster()
-        import asyncio
         loop = asyncio.get_event_loop()
         if loop.is_running():
             asyncio.ensure_future(broadcaster.broadcast_detection({

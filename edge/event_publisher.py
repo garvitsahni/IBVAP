@@ -32,17 +32,17 @@ class EventPublisher:
         h, w = frame_shape[:2]
         x1, y1, x2, y2 = bbox_pixels
 
-        x_norm = x1 / w
-        y_norm = y1 / h
-        w_norm = (x2 - x1) / w
-        h_norm = (y2 - y1) / h
-
         return {
             "camera_id": camera_id,
             "timestamp": timestamp,
             "object_type": object_type,
             "track_id": str(track_id),
-            "bbox": [round(x_norm, 6), round(y_norm, 6), round(w_norm, 6), round(h_norm, 6)],
+            "bbox": {
+                "x1": round(x1 / w, 6),
+                "y1": round(y1 / h, 6),
+                "x2": round(x2 / w, 6),
+                "y2": round(y2 / h, 6),
+            },
             "embedding": embedding.tolist() if embedding is not None else None,
             "confidence": round(confidence, 4),
         }

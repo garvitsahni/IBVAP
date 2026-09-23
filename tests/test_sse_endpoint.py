@@ -2,7 +2,8 @@
 import pytest
 import asyncio
 import json
-from fusion_server.api.routes.stream import get_broadcaster, router
+from fusion_server.services.broadcaster import get_broadcaster
+from fusion_server.api.alerts import router
 from fusion_server.services.sse_broadcaster import SSEBroadcaster
 
 

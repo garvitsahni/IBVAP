@@ -63,7 +63,10 @@ export function Sidebar() {
       <div className="border-t border-border p-2">
         <button
           type="button"
-          onClick={() => navigate('/login', { replace: true })}
+          onClick={() => {
+            try { localStorage.removeItem("ibvap_token"); } catch {}
+            navigate('/login', { replace: true });
+          }}
           className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-text-secondary transition-colors hover:bg-surface-2 hover:text-text"
         >
           <LogOut size={15} />

@@ -93,7 +93,7 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
   "timestamp": "ISO8601",
   "object_type": "person | vehicle",
   "track_id": "string",
-  "bbox": [x, y, w, h],
+  "bbox": { "x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0 },
   "embedding": [float, ...],
   "confidence": float
 }
@@ -168,6 +168,8 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
 These five contracts are the seams between every team member's workstream. Changing any field requires updating this document and notifying all phase owners.
 
 Additive note (2026-09-23): `Alert.ai_source` (`'template' | 'llava-local' | 'ollama-local' | null`) added alongside `ai_explanation` to distinguish rule-based template fallback (suffixed `[TEMPLATE]`) from real local-LLM output. Nullable/additive only — no existing field renamed or removed. C2 delivery is an opt-in signed POST of the existing Alert JSON (`C2_WEBHOOK_URL`); it introduces no new contract.
+
+Contract correction (2026-09-23, FLAGGED TO ALL PHASE OWNERS): `DetectionEvent.bbox` was documented in Section 5 as a `[x, y, w, h]` list since Phase 0, but every implementation — server `BBox` pydantic model, edge `EventPublisher.build_event`, rule engine, dashboard `DetectionOverlay`, patrol app types — uses the corner object `{"x1","y1","x2","y2"}` (normalized 0–1); the list form is rejected with HTTP 422. This line documents the implemented behavior. Any consumer still sending `[x, y, w, h]` must switch to the corner object. (`PlateDetection.bbox` below is unchanged and remains `[x, y, w, h]`.)
 
 ## 6. Deployment Stages
 

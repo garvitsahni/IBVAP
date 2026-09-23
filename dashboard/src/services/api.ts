@@ -2,15 +2,28 @@
 
 const BASE = "/api/v1";
 
+function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem("ibvap_token");
+  } catch {
+    return null;
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -19,7 +32,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 
 async function patch<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" },
+    method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -27,7 +40,7 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del(path: string): Promise<void> {
-  const res = await fetch(`${BASE}${path}`, { method: "DELETE" });
+  const res = await fetch(`${BASE}${path}`, { method: "DELETE", headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 }
 

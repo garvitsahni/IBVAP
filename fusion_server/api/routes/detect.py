@@ -1,13 +1,19 @@
 """
 Detect API — YOLO inference for browser webcam frames with low-light enhancement.
 Accepts base64 JPEG, returns bounding boxes. No DB storage.
+
+IMPORTANT: all synchronous heavy work (decode helpers, YOLO, OCR) runs in the
+threadpool via run_in_threadpool — NEVER directly on the asyncio event loop.
+Blocking the loop stalls every other request (edge event publishes, SSE, stats).
 """
+import asyncio
 import base64
 import logging
 import numpy as np
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List
+from starlette.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +24,10 @@ _model_lock = __import__("threading").Lock()
 
 _ocr_reader = None
 _ocr_lock = __import__("threading").Lock()
+
+# Single-flight guard: only one YOLO+OCR run at a time so concurrent frames
+# can't pile up threads and starve the shared threadpool.
+_detect_sem = __import__("threading").Semaphore(1)
 
 VEHICLE_CLASSES = {2, 3, 5, 7}  # car, motorcycle, bus, truck
 TARGET_CLASSES = {0, 2, 3, 5, 7}
@@ -109,7 +119,12 @@ def _denoise(frame):
     return cv2.bilateralFilter(frame, 9, 75, 75)
 
 
-def _run_yolo(frame, conf_threshold: float) -> List[DetectionResult]:
+def _run_yolo(
+    frame,
+    conf_threshold: float,
+    camera_id: str = "browser-webcam",
+    plate_reads: list | None = None,
+) -> List[DetectionResult]:
     model = _get_model()
     results = model(frame, classes=list(TARGET_CLASSES), verbose=False, imgsz=1280)
     dets = []
@@ -129,20 +144,14 @@ def _run_yolo(frame, conf_threshold: float) -> List[DetectionResult]:
                 plate_text = _read_plate(frame, x1, y1, x2, y2)
                 if plate_text:
                     logger.info(f"[PLATE READ] {CLASS_NAMES.get(cls_id)} -> '{plate_text}'")
-                    try:
-                        import asyncio
-                        from fusion_server.services.broadcaster import get_broadcaster
-                        broadcaster = get_broadcaster()
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.ensure_future(broadcaster.broadcast_plate_read({
-                                "camera_id": req.camera_id,
-                                "plate_text": plate_text,
-                                "class_name": CLASS_NAMES.get(cls_id),
-                                "confidence": round(conf, 3),
-                            }))
-                    except Exception:
-                        pass  # Never block detection on broadcast failure
+                    if plate_reads is not None:
+                        # Collected here; SSE broadcast happens on the event loop
+                        plate_reads.append({
+                            "camera_id": camera_id,
+                            "plate_text": plate_text,
+                            "class_name": CLASS_NAMES.get(cls_id),
+                            "confidence": round(conf, 3),
+                        })
             dets.append(DetectionResult(
                 bbox=BBoxResponse(x1=x1, y1=y1, x2=x2, y2=y2),
                 confidence=round(conf, 3),
@@ -280,6 +289,64 @@ def _dedup(dets: List[DetectionResult], iou_thresh=0.4) -> List[DetectionResult]
     return keep
 
 
+def _process_frame(frame, conf: float, camera_id: str) -> dict:
+    """
+    Multi-pass low-light YOLO detection + plate OCR.
+    SYNC — must only ever run inside run_in_threadpool, never on the event loop.
+    """
+    import cv2
+
+    h, w = frame.shape[:2]
+    brightness = _get_brightness(frame)
+    dark = brightness < 80
+
+    all_dets: List[DetectionResult] = []
+    plate_reads: list = []
+    passes = 0
+
+    try:
+        # Pass 1: Always run on CLAHE-enhanced frame (works well for both light and dark)
+        enhanced = _clahe(frame, clip=3.0, grid=8)
+        all_dets.extend(_run_yolo(enhanced, conf, camera_id=camera_id, plate_reads=plate_reads))
+        passes += 1
+
+        if dark:
+            # Pass 2: CLAHE + denoise + gamma 2.0
+            step2 = _denoise(_clahe(frame, clip=4.0, grid=8))
+            step2 = cv2.LUT(step2, np.array([(i / 255.0) ** (1.0 / 2.0) * 255 for i in range(256)]).astype("uint8"))
+            all_dets.extend(_run_yolo(step2, conf, camera_id=camera_id, plate_reads=plate_reads))
+            passes += 1
+
+            # Pass 3: CLAHE + denoise + gamma 3.0
+            step3 = _denoise(_clahe(frame, clip=5.0, grid=8))
+            step3 = cv2.LUT(step3, np.array([(i / 255.0) ** (1.0 / 3.0) * 255 for i in range(256)]).astype("uint8"))
+            all_dets.extend(_run_yolo(step3, conf, camera_id=camera_id, plate_reads=plate_reads))
+            passes += 1
+
+            # Pass 4: CLAHE + denoise + gamma 4.0
+            step4 = _denoise(_clahe(frame, clip=6.0, grid=8))
+            step4 = cv2.LUT(step4, np.array([(i / 255.0) ** (1.0 / 4.0) * 255 for i in range(256)]).astype("uint8"))
+            all_dets.extend(_run_yolo(step4, conf, camera_id=camera_id, plate_reads=plate_reads))
+            passes += 1
+
+        dets = _dedup(all_dets)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"YOLO inference failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Detection failed: {e}")
+
+    return {
+        "detections": dets,
+        "width": w,
+        "height": h,
+        "is_dark": dark,
+        "brightness": brightness,
+        "passes": passes,
+        "plate_reads": plate_reads,
+    }
+
+
 @router.post("", response_model=DetectResponse)
 async def detect_objects(req: DetectRequest):
     """Run YOLO detection with multi-pass low-light enhancement."""
@@ -299,52 +366,28 @@ async def detect_objects(req: DetectRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Image decode error: {e}")
 
-    h, w = frame.shape[:2]
-    brightness = _get_brightness(frame)
-    dark = brightness < 80
-    conf = req.conf_threshold
-
+    # Single-flight: reject instead of queueing unbounded YOLO work
+    if not _detect_sem.acquire(blocking=False):
+        raise HTTPException(status_code=429, detail="Detection busy — retry next frame")
     try:
-        all_dets: List[DetectionResult] = []
-        passes = 0
-        import cv2
+        result = await run_in_threadpool(_process_frame, frame, req.conf_threshold, req.camera_id)
+    finally:
+        _detect_sem.release()
 
-        # Pass 1: Always run on CLAHE-enhanced frame (works well for both light and dark)
-        enhanced = _clahe(frame, clip=3.0, grid=8)
-        all_dets.extend(_run_yolo(enhanced, conf))
-        passes += 1
-
-        if dark:
-            # Pass 2: CLAHE + denoise + gamma 2.0
-            step2 = _denoise(_clahe(frame, clip=4.0, grid=8))
-            step2 = cv2.LUT(step2, np.array([(i / 255.0) ** (1.0 / 2.0) * 255 for i in range(256)]).astype("uint8"))
-            all_dets.extend(_run_yolo(step2, conf))
-            passes += 1
-
-            # Pass 3: CLAHE + denoise + gamma 3.0
-            step3 = _denoise(_clahe(frame, clip=5.0, grid=8))
-            step3 = cv2.LUT(step3, np.array([(i / 255.0) ** (1.0 / 3.0) * 255 for i in range(256)]).astype("uint8"))
-            all_dets.extend(_run_yolo(step3, conf))
-            passes += 1
-
-            # Pass 4: CLAHE + denoise + gamma 4.0
-            step4 = _denoise(_clahe(frame, clip=6.0, grid=8))
-            step4 = cv2.LUT(step4, np.array([(i / 255.0) ** (1.0 / 4.0) * 255 for i in range(256)]).astype("uint8"))
-            all_dets.extend(_run_yolo(step4, conf))
-            passes += 1
-
-        dets = _dedup(all_dets)
-
-    except Exception as e:
-        logger.error(f"YOLO inference failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Detection failed: {e}")
+    # Plate-read SSE broadcasts must be scheduled on the event loop (never from the worker thread)
+    for plate_event in result["plate_reads"]:
+        try:
+            from fusion_server.services.broadcaster import get_broadcaster
+            asyncio.ensure_future(get_broadcaster().broadcast_plate_read(plate_event))
+        except Exception:
+            pass  # Never block detection on broadcast failure
 
     return DetectResponse(
         camera_id=req.camera_id,
-        detections=dets,
-        width=w,
-        height=h,
-        is_dark=dark,
-        brightness=brightness,
-        passes=passes,
+        detections=result["detections"],
+        width=result["width"],
+        height=result["height"],
+        is_dark=result["is_dark"],
+        brightness=result["brightness"],
+        passes=result["passes"],
     )

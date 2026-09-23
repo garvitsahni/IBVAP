@@ -8,8 +8,14 @@ from datetime import datetime
 
 from fusion_server.db.session import get_db
 from fusion_server.db.models import Watchlist
+from fusion_server.core.watchlist_crypto import get_key, encrypt_embedding, load_embedding
 
 from pydantic import BaseModel, field_validator
+
+
+def _embedding_out(value) -> List[float]:
+    """Decrypt a stored embedding for API responses (legacy plaintext rows supported)."""
+    return load_embedding(value, get_key())
 
 
 class WatchlistCreate(BaseModel):
@@ -52,11 +58,11 @@ router = APIRouter(prefix="/api/v1/watchlist", tags=["watchlist"])
 
 @router.post("", response_model=WatchlistResponse, status_code=status.HTTP_201_CREATED)
 async def create_watchlist_entry(entry: WatchlistCreate, db: Session = Depends(get_db)):
-    """Add entry to local watchlist."""
+    """Add entry to local watchlist (embedding encrypted at rest)."""
     db_entry = Watchlist(
         watchlist_type=entry.watchlist_type,
         reference_id=entry.reference_id,
-        embedding=entry.embedding,
+        embedding=encrypt_embedding(entry.embedding, get_key()).decode("ascii"),
         extra_metadata=entry.metadata,
         active=True,
         expires_at=entry.expires_at,
@@ -69,7 +75,7 @@ async def create_watchlist_entry(entry: WatchlistCreate, db: Session = Depends(g
         id=db_entry.id,
         watchlist_type=db_entry.watchlist_type,
         reference_id=db_entry.reference_id,
-        embedding=db_entry.embedding,
+        embedding=_embedding_out(db_entry.embedding),
         metadata=db_entry.extra_metadata,
         active=db_entry.active,
         created_at=db_entry.created_at,
@@ -98,7 +104,7 @@ async def list_watchlist(
             id=e.id,
             watchlist_type=e.watchlist_type,
             reference_id=e.reference_id,
-            embedding=e.embedding,
+            embedding=_embedding_out(e.embedding),
             metadata=e.extra_metadata,
             active=e.active,
             created_at=e.created_at,
@@ -119,8 +125,8 @@ async def get_watchlist_entry(entry_id: int, db: Session = Depends(get_db)):
         id=entry.id,
         watchlist_type=entry.watchlist_type,
         reference_id=entry.reference_id,
-        embedding=entry.embedding,
-        metadata=entry.metadata,
+        embedding=_embedding_out(entry.embedding),
+        metadata=entry.extra_metadata,
         active=entry.active,
         created_at=entry.created_at,
         expires_at=entry.expires_at,
@@ -148,7 +154,7 @@ async def update_watchlist_entry(entry_id: int, update: WatchlistUpdate, db: Ses
         id=entry.id,
         watchlist_type=entry.watchlist_type,
         reference_id=entry.reference_id,
-        embedding=entry.embedding,
+        embedding=_embedding_out(entry.embedding),
         metadata=entry.extra_metadata,
         active=entry.active,
         created_at=entry.created_at,

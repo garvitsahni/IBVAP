@@ -12,3 +12,9 @@ yolov8n.pt
 yolov8s.pt
 *.onnx
 patrol_app/dist/
+.ibvap_state.json
+.watchlist_key
+ibvap.db
+footage/
+data/
+models/*.bak

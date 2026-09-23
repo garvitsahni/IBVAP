@@ -1,5 +1,6 @@
 import { WifiOff } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CameraFeed } from "./CameraFeed"
 
 interface CameraTileProps {
   camera: { id: string; name: string; status: "online" | "offline" | "degraded"; lastSeen?: string }
@@ -21,15 +22,7 @@ export function CameraTile({ camera, onClick }: CameraTileProps) {
       )}
     >
       {isOnline ? (
-        <div className="absolute inset-0 bg-surface-2">
-          <div className="absolute inset-0 opacity-[0.03]" style={{
-            backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 4px)"
-          }} />
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div className="h-px w-8 bg-accent/20" />
-            <div className="absolute left-1/2 top-1/2 h-8 w-px -translate-x-1/2 -translate-y-1/2 bg-accent/20" />
-          </div>
-        </div>
+        <CameraFeed cameraId={camera.id} />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-2">
           <WifiOff className="mb-1 h-5 w-5 text-text-muted/50" />

@@ -26,15 +26,15 @@ def download_test_footage(footage_dir: Path):
     for filename, url in TEST_VIDEOS.items():
         filepath = footage_dir / filename
         if filepath.exists():
-            print(f"✓ {filename} already exists")
+            print(f"[OK] {filename} already exists")
             continue
 
         print(f"Downloading {filename}...")
         try:
             urllib.request.urlretrieve(url, filepath)
-            print(f"✓ Downloaded {filename}")
+            print(f"[OK] Downloaded {filename}")
         except Exception as e:
-            print(f"✗ Failed to download {filename}: {e}")
+            print(f"[FAIL] Failed to download {filename}: {e}")
             # Create a dummy file for testing
             create_dummy_video(filepath)
 
@@ -47,9 +47,9 @@ def create_dummy_video(filepath: Path):
             "ffmpeg", "-f", "lavfi", "-i", "testsrc=duration=30:size=640x480:rate=30",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", str(filepath)
         ], check=True, capture_output=True)
-        print(f"✓ Created dummy video {filepath.name}")
+        print(f"[OK] Created dummy video {filepath.name}")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print(f"✗ Could not create dummy video (ffmpeg not available)")
+        print(f"[FAIL] Could not create dummy video (ffmpeg not available)")
         # Create empty file as last resort
         filepath.write_bytes(b"")
 
@@ -63,19 +63,19 @@ paths:
   cam1:
     source: publisher
     sourceOnDemand: false
-    runOnDemand: ffmpeg -re -stream_loop -1 -i {footage_dir}/cam1.mp4 -c copy -f rtsp rtsp://localhost:8554/cam1
+    runOnDemand: ffmpeg -re -stream_loop -1 -i {footage_dir}/cam1.mp4 -c copy -f rtsp rtsp://127.0.0.1:8554/cam1
     runOnDemandRestart: true
 
   cam2:
     source: publisher
     sourceOnDemand: false
-    runOnDemand: ffmpeg -re -stream_loop -1 -i {footage_dir}/cam2.mp4 -c copy -f rtsp rtsp://localhost:8554/cam2
+    runOnDemand: ffmpeg -re -stream_loop -1 -i {footage_dir}/cam2.mp4 -c copy -f rtsp rtsp://127.0.0.1:8554/cam2
     runOnDemandRestart: true
 
   cam3:
     source: publisher
     sourceOnDemand: false
-    runOnDemand: ffmpeg -re -stream_loop -1 -i {footage_dir}/cam3.mp4 -c copy -f rtsp rtsp://localhost:8554/cam3
+    runOnDemand: ffmpeg -re -stream_loop -1 -i {footage_dir}/cam3.mp4 -c copy -f rtsp rtsp://127.0.0.1:8554/cam3
     runOnDemandRestart: true
 
 api:
@@ -88,10 +88,10 @@ logLevel: info
 logFormat: json
 """
     config_path.write_text(config)
-    print(f"✓ Generated mediamtx config at {config_path}")
+    print(f"[OK] Generated mediamtx config at {config_path}")
 
 
-def start_mediamtx(config_path: Path):
+def start_mediamtx(config_path: Path, footage_dir: Path):
     """Start mediamtx container."""
     print("Starting mediamtx container...")
     try:
@@ -106,10 +106,10 @@ def start_mediamtx(config_path: Path):
             "bluenviron/mediamtx:latest",
             "/mediamtx.yml"
         ], check=True)
-        print("✓ mediamtx container started")
+        print("[OK] mediamtx container started")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"✗ Failed to start mediamtx: {e}")
+        print(f"[FAIL] Failed to start mediamtx: {e}")
         return False
 
 
@@ -121,14 +121,14 @@ def wait_for_streams(timeout: int = 30):
     start = time.time()
     while time.time() - start < timeout:
         try:
-            sock = socket.create_connection(("localhost", 8554), timeout=2)
+            sock = socket.create_connection(("127.0.0.1", 8554), timeout=2)
             sock.close()
-            print("✓ RTSP port 8554 is accessible")
+            print("[OK] RTSP port 8554 is accessible")
             return True
         except (ConnectionRefusedError, socket.timeout):
             time.sleep(1)
 
-    print("✗ Timeout waiting for RTSP streams")
+    print("[FAIL] Timeout waiting for RTSP streams")
     return False
 
 
@@ -139,7 +139,7 @@ def verify_streams():
     all_ok = True
 
     for stream in streams:
-        url = f"rtsp://localhost:8554/{stream}"
+        url = f"rtsp://127.0.0.1:8554/{stream}"
         try:
             # Quick ffprobe check
             result = subprocess.run([
@@ -147,14 +147,14 @@ def verify_streams():
                 "-show_entries", "stream=width,height", "-of", "csv=p=0", url
             ], capture_output=True, timeout=10)
             if result.returncode == 0:
-                print(f"✓ {stream}: {result.stdout.decode().strip()}")
+                print(f"[OK] {stream}: {result.stdout.decode().strip()}")
             else:
-                print(f"✗ {stream}: ffprobe failed")
+                print(f"[FAIL] {stream}: ffprobe failed")
                 all_ok = False
         except (subprocess.TimeoutExpired, FileNotFoundError):
             print(f"? {stream}: ffprobe not available, assuming OK")
         except Exception as e:
-            print(f"✗ {stream}: {e}")
+            print(f"[FAIL] {stream}: {e}")
             all_ok = False
 
     return all_ok
@@ -183,7 +183,7 @@ def main():
         subprocess.run(["docker", "rm", "ibvap_mediamtx"], capture_output=True)
 
     # Start mediamtx
-    if not start_mediamtx(config_path):
+    if not start_mediamtx(config_path, footage_dir):
         sys.exit(1)
 
     # Wait for streams
@@ -194,16 +194,16 @@ def main():
     # Verify streams
     if verify_streams():
         print("\n" + "=" * 60)
-        print("✓ All 3 simulated camera streams are running!")
+        print("[OK] All 3 simulated camera streams are running!")
         print("=" * 60)
         print("RTSP URLs:")
-        print("  cam1: rtsp://localhost:8554/cam1")
-        print("  cam2: rtsp://localhost:8554/cam2")
-        print("  cam3: rtsp://localhost:8554/cam3")
-        print("\nMediaMTX API: http://localhost:9997")
-        print("MediaMTX Metrics: http://localhost:9998")
+        print("  cam1: rtsp://127.0.0.1:8554/cam1")
+        print("  cam2: rtsp://127.0.0.1:8554/cam2")
+        print("  cam3: rtsp://127.0.0.1:8554/cam3")
+        print("\nMediaMTX API: http://127.0.0.1:9997")
+        print("MediaMTX Metrics: http://127.0.0.1:9998")
     else:
-        print("\n⚠ Some streams may have issues. Check docker logs:")
+        print("\n[WARN] Some streams may have issues. Check docker logs:")
         print("  docker logs ibvap_mediamtx")
 
 

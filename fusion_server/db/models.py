@@ -2,6 +2,7 @@ from sqlalchemy import (
     Column, Integer, BigInteger, String, DateTime, Float, JSON, Text, Boolean, ForeignKey, Index, CheckConstraint
 )
 from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.types import TypeDecorator
 from pgvector.sqlalchemy import Vector
 from datetime import datetime
 
@@ -17,7 +18,7 @@ class DetectionEvent(Base):
     object_type = Column(String(16), nullable=False)  # 'person' | 'vehicle'
     object_id = Column(String(128), nullable=True)  # Global re-ID identity (set by MatchingEngine)
     track_id = Column(String(64), nullable=False)
-    bbox = Column(JSON, nullable=False)  # [x1, y1, x2, y2] normalized 0-1
+    bbox = Column(JSON, nullable=False)  # {"x1","y1","x2","y2"} normalized 0-1
     embedding = Column(Vector(512), nullable=True)  # OSNet/vehicle-ReID embedding
     face_embedding = Column(Vector(512), nullable=True)  # ArcFace face embedding
     plate_text = Column(String(32), nullable=True)  # ANPR plate text
@@ -79,7 +80,10 @@ class Alert(Base):
     ai_source = Column(String(16), nullable=True)  # 'template' | 'llava-local' | 'ollama-local' | None
     trajectory_projection = Column(JSON, nullable=True)
     plate_text = Column(String(32), nullable=True)
-    footprint_entry_id = Column(BigInteger, ForeignKey("footprint_entries.id"), nullable=True)
+    # use_alter: marks alerts<->footprint_entries FK cycle as known so DROP
+    # order can be sorted (SQLite has no ALTER, so this FK constraint is
+    # omitted there; PostgreSQL gets it from schema.sql's explicit ALTER).
+    footprint_entry_id = Column(BigInteger, ForeignKey("footprint_entries.id", use_alter=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     enriched_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -97,13 +101,40 @@ class Alert(Base):
     )
 
 
+class EncryptedEmbedding(TypeDecorator):
+    """TEXT column for watchlist embeddings — encrypted at rest for EVERY writer.
+
+    - list/ndarray binds: Fernet-encrypted here, so even direct model inserts
+      (tests, admin scripts) cannot store plaintext embeddings.
+    - str binds: passed through unchanged (already-encrypted API writes, or
+      legacy plaintext JSON rows still readable by load_embedding()).
+    Selecting always yields str; decryption is app-side (matcher / API).
+    """
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if hasattr(value, "tolist"):
+            value = value.tolist()
+        if isinstance(value, (list, tuple)):
+            from fusion_server.core.watchlist_crypto import encrypt_embedding, get_key
+            return encrypt_embedding(list(value), get_key()).decode("ascii")
+        return str(value)
+
+
 class Watchlist(Base):
     __tablename__ = "watchlist"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     watchlist_type = Column(String(16), nullable=False)  # 'face' | 'plate'
     reference_id = Column(String(128), nullable=False)
-    embedding = Column(Vector(512), nullable=False)
+    # Fernet-encrypted embedding token (TEXT). Not a pgvector VECTOR: an
+    # encrypted token is not a vector — matching decrypts app-side (ARCHITECTURE
+    # "local encrypted embedding store"). EncryptedEmbedding auto-encrypts raw
+    # list inserts so no writer can bypass encryption-at-rest.
+    embedding = Column(EncryptedEmbedding, nullable=False)
     extra_metadata = Column("metadata", JSON, nullable=True)
     active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)

@@ -11,6 +11,7 @@ export class SSEClient {
     this.source.addEventListener("alert_fired", (e) => this.dispatch("alert_fired", JSON.parse(e.data)));
     this.source.addEventListener("alert_enriched", (e) => this.dispatch("alert_enriched", JSON.parse(e.data)));
     this.source.addEventListener("detection", (e) => this.dispatch("detection", JSON.parse(e.data)));
+    this.source.addEventListener("plate_read", (e) => this.dispatch("plate_read", JSON.parse(e.data)));
     this.source.onerror = () => {
       this.source?.close();
       setTimeout(() => this.connect(url), Math.min(this.reconnectDelay * 2, this.maxReconnectDelay));

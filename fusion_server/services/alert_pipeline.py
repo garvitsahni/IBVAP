@@ -131,15 +131,21 @@ class AlertPipeline:
                 self._alert_ledger.write_alert_with_hash(self.db, alert)
                 alerts.append(alert)
 
-                # Fire-and-forget enrichment + broadcast (does not block alert delivery)
+                # Fire-and-forget enrichment + broadcast (does not block alert delivery).
+                # Only build the coroutine when a loop can actually schedule it —
+                # creating it without a running loop would orphan it (never awaited).
                 if self.sse_broadcaster is not None or self.enrichment_service is not None:
                     try:
+                        asyncio.get_running_loop()
+                    except RuntimeError:
+                        logger.debug(
+                            "No event loop; caller must schedule enrichment for alert %s",
+                            alert.alert_id,
+                        )
+                    else:
                         asyncio.create_task(
                             self._enrich_and_broadcast(alert, event, trajectory_projection=[])
                         )
-                    except RuntimeError:
-                        # No running event loop — skip enrichment silently
-                        logger.debug("No event loop; skipping enrichment for alert %s", alert.alert_id)
 
         # 6. Project trajectory
         trajectory_projection = []

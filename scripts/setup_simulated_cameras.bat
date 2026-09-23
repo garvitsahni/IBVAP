@@ -37,19 +37,19 @@ echo paths:
 echo   cam1:
 echo     source: publisher
 echo     sourceOnDemand: false
-echo     runOnDemand: ffmpeg -re -stream_loop -1 -i /footage/cam1.mp4 -c copy -f rtsp rtsp://localhost:8554/cam1
+echo     runOnDemand: ffmpeg -re -stream_loop -1 -i /footage/cam1.mp4 -c copy -f rtsp rtsp://127.0.0.1:8554/cam1
 echo     runOnDemandRestart: true
 echo.
 echo   cam2:
 echo     source: publisher
 echo     sourceOnDemand: false
-echo     runOnDemand: ffmpeg -re -stream_loop -1 -i /footage/cam2.mp4 -c copy -f rtsp rtsp://localhost:8554/cam2
+echo     runOnDemand: ffmpeg -re -stream_loop -1 -i /footage/cam2.mp4 -c copy -f rtsp rtsp://127.0.0.1:8554/cam2
 echo     runOnDemandRestart: true
 echo.
 echo   cam3:
 echo     source: publisher
 echo     sourceOnDemand: false
-echo     runOnDemand: ffmpeg -re -stream_loop -1 -i /footage/cam3.mp4 -c copy -f rtsp rtsp://localhost:8554/cam3
+echo     runOnDemand: ffmpeg -re -stream_loop -1 -i /footage/cam3.mp4 -c copy -f rtsp rtsp://127.0.0.1:8554/cam3
 echo     runOnDemandRestart: true
 echo.
 echo api:
@@ -94,12 +94,12 @@ timeout /t 5 /nobreak >nul
 echo.
 echo ============================================================
 echo RTSP URLs:
-echo   cam1: rtsp://localhost:8554/cam1
-echo   cam2: rtsp://localhost:8554/cam2
-echo   cam3: rtsp://localhost:8554/cam3
+echo   cam1: rtsp://127.0.0.1:8554/cam1
+echo   cam2: rtsp://127.0.0.1:8554/cam2
+echo   cam3: rtsp://127.0.0.1:8554/cam3
 echo.
-echo MediaMTX API: http://localhost:9997
-echo MediaMTX Metrics: http://localhost:9998
+echo MediaMTX API: http://127.0.0.1:9997
+echo MediaMTX Metrics: http://127.0.0.1:9998
 echo ============================================================
 echo.
 echo To view logs: docker logs -f ibvap_mediamtx

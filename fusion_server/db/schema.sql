@@ -13,7 +13,7 @@ CREATE TABLE detection_events (
     timestamp TIMESTAMPTZ NOT NULL,
     object_type VARCHAR(16) NOT NULL CHECK (object_type IN ('person', 'vehicle')),
     track_id VARCHAR(64) NOT NULL,
-    bbox JSONB NOT NULL,  -- [x1, y1, x2, y2] normalized 0-1
+    bbox JSONB NOT NULL,  -- {"x1","y1","x2","y2"} normalized 0-1
     embedding VECTOR(512),  -- OSNet/vehicle-ReID embedding
     confidence DOUBLE PRECISION NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -77,7 +77,7 @@ CREATE TABLE watchlist (
     id BIGSERIAL PRIMARY KEY,
     watchlist_type VARCHAR(16) NOT NULL CHECK (watchlist_type IN ('face', 'plate')),
     reference_id VARCHAR(128) NOT NULL,  -- External reference (e.g., case number)
-    embedding VECTOR(512) NOT NULL,  -- Encrypted/stored embedding
+    embedding TEXT NOT NULL,  -- Fernet-encrypted embedding token (base64); decrypt app-side
     metadata JSONB,  -- Additional info (name, plate_number, etc.)
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -85,4 +85,9 @@ CREATE TABLE watchlist (
 );
 
 CREATE INDEX idx_watchlist_type_active ON watchlist (watchlist_type, active) WHERE active = TRUE;
-CREATE INDEX idx_watchlist_embedding ON watchlist USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- Former ivfflat vector index on watchlist.embedding removed (2026-09-23):
+-- the column stores a Fernet ciphertext, not a vector; matching decrypts
+-- app-side and computes cosine similarity in Python (ARCHITECTURE.md
+-- "local encrypted embedding store"). Existing PG databases:
+--   ALTER TABLE watchlist ALTER COLUMN embedding TYPE TEXT USING embedding::text;
+--   DROP INDEX IF EXISTS idx_watchlist_embedding;

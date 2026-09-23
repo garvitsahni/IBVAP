@@ -86,7 +86,7 @@ class TestEnrichmentFireAndForget:
         pipeline.set_sse_broadcaster(broadcaster)
 
         with patch("fusion_server.services.alert_pipeline.asyncio.create_task") as mock_create_task:
-            mock_create_task.return_value = MagicMock()  # fake Task
+            mock_create_task.side_effect = lambda coro: (coro.close(), MagicMock())[1]
             result = pipeline.process(_make_event())
 
             # Alert was created
@@ -122,7 +122,7 @@ class TestEnrichmentFireAndForget:
         pipeline.set_sse_broadcaster(broadcaster)
 
         with patch("fusion_server.services.alert_pipeline.asyncio.create_task") as mock_create_task:
-            mock_create_task.return_value = MagicMock()
+            mock_create_task.side_effect = lambda coro: (coro.close(), MagicMock())[1]
             result = pipeline.process(_make_event())
             assert len(result["alerts"]) == 1
             mock_create_task.assert_called_once()

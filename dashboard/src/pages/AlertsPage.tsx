@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { AlertFeed } from '@/components/alert/AlertFeed';
 import { AlertDetailPanel } from '@/components/alert/AlertDetailPanel';
 import { api } from '@/services/api';
+import { useSSE } from '@/hooks/useSSE';
 import type { Alert as ApiAlert } from '@/types/api';
 
 interface DashboardAlert {
@@ -46,6 +47,21 @@ export function AlertsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const { on } = useSSE('/api/v1/alerts/stream');
+  useEffect(() => {
+    on('alert_fired', (data) => {
+      const raw = data as unknown as ApiAlert;
+      setAlerts((prev) => [mapApiAlert(raw), ...prev]);
+    });
+  }, [on]);
+
+  const handleAcknowledge = async (id: string) => {
+    try {
+      await api.acknowledgeAlert(id);
+      setAlerts((prev) => prev.map((a) => a.id === id ? { ...a, status: 'acknowledged' } : a));
+    } catch {}
+  };
+
   const selectedAlert = alerts.find((a) => a.id === selectedAlertId) || null;
 
   return (
@@ -83,6 +99,7 @@ export function AlertsPage() {
       <AlertDetailPanel
         alert={selectedAlert}
         onClose={() => setSelectedAlertId(null)}
+        onAcknowledge={handleAcknowledge}
       />
     </motion.div>
   );

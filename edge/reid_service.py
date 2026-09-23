@@ -77,7 +77,12 @@ class ReIDService:
             self._vehicle_session = None
             self._vehicle_input_h, self._vehicle_input_w = REID_INPUT_HEIGHT, REID_INPUT_WIDTH
 
-    def _preprocess_crop(self, crop: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
+    def _preprocess_crop(
+        self,
+        crop: np.ndarray,
+        target_h: int = REID_INPUT_HEIGHT,
+        target_w: int = REID_INPUT_WIDTH,
+    ) -> np.ndarray:
         """
         Preprocess crop for Re-ID inference.
         Input: BGR numpy array (H, W, 3) uint8

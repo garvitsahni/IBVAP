@@ -61,9 +61,13 @@ class FootprintChainWriter:
 
         last_entry = self._get_last_entry(db, object_id)
 
+        # Strip timezone info for consistent comparison with SQLite-stored timestamps
+        ts_naive = timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
+
         if last_entry is not None:
             if last_entry.camera_id == camera_id:
-                time_gap = (timestamp - last_entry.timestamp).total_seconds()
+                last_ts = last_entry.timestamp.replace(tzinfo=None) if last_entry.timestamp.tzinfo else last_entry.timestamp
+                time_gap = (ts_naive - last_ts).total_seconds()
                 if time_gap < self.min_same_camera_gap:
                     return None
             previous_hash = last_entry.hash
@@ -72,7 +76,7 @@ class FootprintChainWriter:
             if event_type != "first_seen":
                 event_type = "first_seen"
 
-        timestamp_str = timestamp.replace(tzinfo=None).isoformat()
+        timestamp_str = ts_naive.isoformat()
         hash_value = self._compute_hash(
             object_id, camera_id, timestamp_str, event_type, previous_hash
         )

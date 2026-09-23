@@ -174,10 +174,12 @@ class _SimpleByteTracker:
                 self.trackers[trk_idx].update(low_conf[d_idx]["bbox"])
                 self.trackers[trk_idx].confidence = low_conf[d_idx]["confidence"]
 
+        matched_trk_ids = {self.trackers[i].track_id for i in matched_trk_indices}
+
         self.trackers = [t for t in self.trackers if t.time_since_update <= self.max_age]
 
         for trk in self.trackers:
-            if trk.track_id not in new_track_ids and trk.track_id not in {self.trackers[i].track_id for i in matched_trk_indices}:
+            if trk.track_id not in new_track_ids and trk.track_id not in matched_trk_ids:
                 trk.time_since_update += 1
 
         results = []

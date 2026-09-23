@@ -31,6 +31,19 @@
   --color-status-online: #16a34a;
   --color-status-offline: #6b7280;
   --color-status-degraded: #d97706;
+  --color-status-ok: #16a34a;
+
+  --color-surface-0: #080b10;
+  --color-surface-1: #0d1117;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --color-border-strong: #2a3548;
+
+  /* Ops filter classes (used by EventFilters) */
+  --color-ops-bg: #0d1117;
+  --color-ops-border: #1b2332;
+  --color-ops-text: #d1d9e6;
+  --color-ops-muted: #4a5568;
+  --color-ops-accent: #5ba4cf;
 }
 
 @layer base {
@@ -66,3 +79,26 @@
     background: #2a3548;
   }
 }
+
+/* Ops filter utility classes */
+.text-ops-muted { color: var(--color-ops-muted); }
+.text-ops-text { color: var(--color-ops-text); }
+.border-ops-border { border-color: var(--color-ops-border); }
+.bg-ops-bg { background-color: var(--color-ops-bg); }
+.focus\:border-ops-accent:focus { border-color: var(--color-ops-accent); }
+.focus\:ring-ops-accent:focus { --tw-ring-color: var(--color-ops-accent); }
+
+/* Status utilities */
+.text-status-ok { color: var(--color-status-ok); }
+.bg-status-ok { background-color: var(--color-status-ok); }
+.bg-status-online { background-color: var(--color-status-online); }
+.bg-status-offline { background-color: var(--color-status-offline); }
+.bg-status-degraded { background-color: var(--color-status-degraded); }
+
+/* Shadow utilities */
+.shadow-card { box-shadow: var(--shadow-card); }
+
+/* Surface utilities */
+.bg-surface-0 { background-color: var(--color-surface-0); }
+.bg-surface-1 { background-color: var(--color-surface-1); }
+.border-border-strong { border-color: var(--color-border-strong); }

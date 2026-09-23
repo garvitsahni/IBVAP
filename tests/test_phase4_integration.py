@@ -183,6 +183,7 @@ class TestPipelineWithBothServices:
             # The task receives a coroutine from _enrich_and_broadcast
             coro_arg = mock_task.call_args[0][0]
             assert asyncio.iscoroutine(coro_arg)
+            coro_arg.close()  # mocked create_task never runs it — avoid never-awaited leak
 
 
 class TestSuspiciousActivityIntegrated:

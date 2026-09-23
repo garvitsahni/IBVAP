@@ -23,16 +23,17 @@ def test_builds_correct_event_json():
     assert event["embedding"] is None
 
     assert len(event["bbox"]) == 4
-    x, y, w, h = event["bbox"]
-    assert 0 <= x <= 1
-    assert 0 <= y <= 1
-    assert 0 < w <= 1
-    assert 0 < h <= 1
+    bbox = event["bbox"]
+    x1, y1, x2, y2 = bbox["x1"], bbox["y1"], bbox["x2"], bbox["y2"]
+    assert 0 <= x1 <= 1
+    assert 0 <= y1 <= 1
+    assert 0 < x2 <= 1
+    assert 0 < y2 <= 1
 
-    assert abs(x - 100/640) < 0.001
-    assert abs(y - 50/480) < 0.001
-    assert abs(w - 200/640) < 0.001
-    assert abs(h - 350/480) < 0.001
+    assert abs(x1 - 100/640) < 0.001
+    assert abs(y1 - 50/480) < 0.001
+    assert abs(x2 - 300/640) < 0.001
+    assert abs(y2 - 400/480) < 0.001
 
 
 def test_object_type_mapping():

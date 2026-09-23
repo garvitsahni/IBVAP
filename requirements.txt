@@ -41,6 +41,9 @@ onnxruntime>=1.17.0
 scikit-image>=0.22.0
 insightface>=0.7.3
 
+# OCR (Alternative)
+easyocr>=1.7.0
+
 # Encryption
 cryptography>=42.0.0
 

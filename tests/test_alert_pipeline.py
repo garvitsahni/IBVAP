@@ -264,7 +264,8 @@ class TestTrajectoryProjection:
 class TestSSEBroadcaster:
     """Pipeline broadcasts alerts via SSE when broadcaster is set."""
 
-    def test_broadcasts_when_set(self):
+    @pytest.mark.asyncio
+    async def test_broadcasts_when_set(self):
         pipeline = AlertPipeline(db=_mock_db())
         broadcaster = MagicMock()
         pipeline.set_sse_broadcaster(broadcaster)
@@ -274,8 +275,10 @@ class TestSSEBroadcaster:
             polygon=[[0.0, 0.0], [0.5, 0.0], [0.5, 0.5], [0.0, 0.5]],
         ))
         event = _make_event(bbox={"x1": 0.1, "y1": 0.1, "x2": 0.2, "y2": 0.2})
+        # Must run with a live event loop: process() only schedules enrichment
+        # when a loop exists (otherwise the coroutine would be orphaned).
         with patch("fusion_server.services.alert_pipeline.asyncio.create_task") as mock_task:
-            mock_task.return_value = MagicMock()
+            mock_task.side_effect = lambda coro: (coro.close(), MagicMock())[1]
             pipeline.process(event)
             mock_task.assert_called_once()
 
