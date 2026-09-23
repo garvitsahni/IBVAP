@@ -42,40 +42,50 @@ class ReIDService:
         self._vehicle_input_name = None
 
     def _load_model(self):
-        """Load ONNX model for inference."""
+        """Load ONNX model for inference (GPU-primary, loud fallback)."""
         try:
-            import onnxruntime as ort
-            self._session = ort.InferenceSession(self.model_path)
+            from edge.model_runtime import create_session
+            self._session = create_session(self.model_path)
             self._input_name = self._session.get_inputs()[0].name
-            logger.info(f"ReID model loaded from {self.model_path}")
+            inp = self._session.get_inputs()[0]
+            self._input_h, self._input_w = inp.shape[2], inp.shape[3]
+        except RuntimeError as e:
+            logger.warning(f"{e}")
+            logger.warning("ReID service will return None embeddings (graceful fallback)")
+            self._session = None
+            self._input_h, self._input_w = REID_INPUT_HEIGHT, REID_INPUT_WIDTH
         except Exception as e:
             logger.warning(f"Failed to load ReID model from {self.model_path}: {e}")
             logger.warning("ReID service will return None embeddings (graceful fallback)")
             self._session = None
+            self._input_h, self._input_w = REID_INPUT_HEIGHT, REID_INPUT_WIDTH
 
     def _load_vehicle_model(self):
-        """Load ONNX model for vehicle Re-ID inference."""
+        """Load ONNX model for vehicle Re-ID inference (GPU-primary, loud fallback)."""
         try:
-            import onnxruntime as ort
-            self._vehicle_session = ort.InferenceSession(self.vehicle_model_path)
+            from edge.model_runtime import create_session
+            self._vehicle_session = create_session(self.vehicle_model_path)
             self._vehicle_input_name = self._vehicle_session.get_inputs()[0].name
-            logger.info(f"Vehicle ReID model loaded from {self.vehicle_model_path}")
+            inp = self._vehicle_session.get_inputs()[0]
+            self._vehicle_input_h, self._vehicle_input_w = inp.shape[2], inp.shape[3]
+        except RuntimeError as e:
+            logger.warning(f"{e}")
+            self._vehicle_session = None
+            self._vehicle_input_h, self._vehicle_input_w = REID_INPUT_HEIGHT, REID_INPUT_WIDTH
         except Exception as e:
             logger.warning(f"Failed to load vehicle ReID model: {e}")
             self._vehicle_session = None
+            self._vehicle_input_h, self._vehicle_input_w = REID_INPUT_HEIGHT, REID_INPUT_WIDTH
 
-    def _preprocess_crop(self, crop: np.ndarray) -> np.ndarray:
+    def _preprocess_crop(self, crop: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
         """
         Preprocess crop for Re-ID inference.
         Input: BGR numpy array (H, W, 3) uint8
         Output: NCHW float32 array normalized to [0, 1]
         """
         import cv2
-        # Resize to standard Re-ID input size
-        resized = cv2.resize(crop, (REID_INPUT_WIDTH, REID_INPUT_HEIGHT))
-        # Convert BGR to RGB
+        resized = cv2.resize(crop, (target_w, target_h))
         rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
-        # Normalize to [0, 1] and transpose to NCHW
         blob = rgb.astype(np.float32) / 255.0
         blob = blob.transpose(2, 0, 1)  # HWC -> CHW
         blob = np.expand_dims(blob, 0)  # Add batch dimension
@@ -93,7 +103,11 @@ class ReIDService:
             return None
 
         try:
-            blob = self._preprocess_crop(crop)
+            if is_vehicle:
+                target_h, target_w = self._vehicle_input_h, self._vehicle_input_w
+            else:
+                target_h, target_w = self._input_h, self._input_w
+            blob = self._preprocess_crop(crop, target_h, target_w)
             outputs = session.run(None, {input_name: blob})
             embedding = outputs[0].flatten()
             # Normalize to unit vector

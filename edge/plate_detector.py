@@ -40,10 +40,13 @@ class PlateDetectorService:
 
     def _load_model(self):
         try:
-            import onnxruntime as ort
-            self._session = ort.InferenceSession(self.model_path)
+            from edge.model_runtime import create_session
+            self._session = create_session(self.model_path)
             self._input_name = self._session.get_inputs()[0].name
-            logger.info(f"Plate detector model loaded from {self.model_path}")
+        except RuntimeError as e:
+            logger.warning(f"{e}")
+            logger.warning("Plate detector will return empty results (graceful fallback)")
+            self._session = None
         except Exception as e:
             logger.warning(f"Failed to load plate detector from {self.model_path}: {e}")
             logger.warning("Plate detector will return empty results (graceful fallback)")

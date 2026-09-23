@@ -38,20 +38,13 @@ class FaceEmbeddingService:
         self._input_size = FACE_EMBED_INPUT_SIZE
 
     def _load_model(self):
-        """Load ONNX model for ArcFace inference."""
+        """Load ONNX model for ArcFace inference (GPU-primary, loud fallback)."""
         try:
-            import onnxruntime as ort
-            self._session = ort.InferenceSession(
-                self.model_path,
-                providers=["CPUExecutionProvider"],
-            )
+            from edge.model_runtime import create_session
+            self._session = create_session(self.model_path)
             self._input_name = self._session.get_inputs()[0].name
-            logger.info(f"Face embedding model loaded from {self.model_path}")
-        except FileNotFoundError:
-            logger.warning(
-                f"Face embedding model not found at {self.model_path}. "
-                "Face embeddings will not be available."
-            )
+        except RuntimeError as e:
+            logger.warning(f"{e}. Face embeddings will not be available.")
             self._session = None
         except Exception as e:
             logger.warning(f"Failed to load face embedding model: {e}")
