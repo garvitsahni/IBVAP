@@ -27,13 +27,15 @@ export interface Alert {
   camera_id: string;
   timestamp: string;
   reason: string;
-  status: "fired" | "enriched" | "acknowledged";
+  status: "fired" | "enriched" | "acknowledged" | "escalated" | "false_positive";
   threat_score: number;
   clip_path: string | null;
   ai_explanation: string | null;
   ai_source: string | null;
   trajectory_projection: unknown;
   plate_text: string | null;
+  reason_detail: string | null;
+  snapshot_path: string | null;
   footprint_entry_id: number | null;
   created_at: string;
   enriched_at: string | null;

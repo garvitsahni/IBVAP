@@ -10,42 +10,13 @@ import { ToastStack } from '@/components/alert/ToastStack';
 import { SSEClient } from '@/services/sse';
 import { api } from '@/services/api';
 import type { Alert as ApiAlert, Camera as ApiCamera } from '@/types/api';
-
-interface DashboardAlert {
-  id: string;
-  type: string;
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
-  cameraId: string;
-  timestamp: string;
-  status: string;
-  plateText?: string | null;
-}
+import { mapApiAlert, type FeedAlert } from '@/lib/alerts';
 
 interface DashboardCamera {
   id: string;
   name: string;
   status: 'online' | 'offline' | 'degraded';
   lastSeen?: string;
-}
-
-function mapSeverity(threatScore: number): DashboardAlert['severity'] {
-  if (threatScore >= 0.8) return 'critical';
-  if (threatScore >= 0.6) return 'high';
-  if (threatScore >= 0.4) return 'medium';
-  if (threatScore >= 0.2) return 'low';
-  return 'info';
-}
-
-function mapApiAlert(raw: ApiAlert): DashboardAlert {
-  return {
-    id: raw.alert_id || String(raw.id),
-    type: raw.reason,
-    severity: mapSeverity(raw.threat_score),
-    cameraId: raw.camera_id,
-    timestamp: raw.timestamp,
-    status: raw.status,
-    plateText: raw.plate_text || null,
-  };
 }
 
 function mapApiCamera(raw: ApiCamera): DashboardCamera {
@@ -59,9 +30,9 @@ function mapApiCamera(raw: ApiCamera): DashboardCamera {
 
 export function DashboardPage() {
   const [cameras, setCameras] = useState<DashboardCamera[]>([]);
-  const [alerts, setAlerts] = useState<DashboardAlert[]>([]);
+  const [alerts, setAlerts] = useState<FeedAlert[]>([]);
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<DashboardAlert[]>([]);
+  const [toasts, setToasts] = useState<FeedAlert[]>([]);
   const [plateNotifications, setPlateNotifications] = useState<{id: number; plate: string; camera: string}[]>([]);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   const [initialLoading, setInitialLoading] = useState(true);

@@ -5,37 +5,10 @@ import { AlertDetailPanel } from '@/components/alert/AlertDetailPanel';
 import { api } from '@/services/api';
 import { useSSE } from '@/hooks/useSSE';
 import type { Alert as ApiAlert } from '@/types/api';
-
-interface DashboardAlert {
-  id: string;
-  type: string;
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
-  cameraId: string;
-  timestamp: string;
-  status: string;
-}
-
-function mapSeverity(threatScore: number): DashboardAlert['severity'] {
-  if (threatScore >= 0.8) return 'critical';
-  if (threatScore >= 0.6) return 'high';
-  if (threatScore >= 0.4) return 'medium';
-  if (threatScore >= 0.2) return 'low';
-  return 'info';
-}
-
-function mapApiAlert(raw: ApiAlert): DashboardAlert {
-  return {
-    id: raw.alert_id || String(raw.id),
-    type: raw.reason,
-    severity: mapSeverity(raw.threat_score),
-    cameraId: raw.camera_id,
-    timestamp: raw.timestamp,
-    status: raw.status,
-  };
-}
+import { mapApiAlert, type FeedAlert } from '@/lib/alerts';
 
 export function AlertsPage() {
-  const [alerts, setAlerts] = useState<DashboardAlert[]>([]);
+  const [alerts, setAlerts] = useState<FeedAlert[]>([]);
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
