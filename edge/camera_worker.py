@@ -1,9 +1,11 @@
 """
 Per-camera processing pipeline: ingest -> preprocess -> detect -> track -> publish -> visualize.
 """
+import os
 import time
 import logging
 import multiprocessing
+from collections import deque
 from typing import Optional, Dict
 
 import numpy as np
@@ -100,6 +102,43 @@ class CameraWorker:
         self._prev_frame = None
         self._frame_count = 0
 
+        # Detection latency guard (IMPLEMENTATION.md degraded-mode spec):
+        # ring of recent detect round-trip times; when p95 exceeds the budget
+        # for 3 consecutive evaluations, flag reduced_accuracy_mode in the
+        # camera health record (visible degraded-mode signal).
+        self._detect_budget_ms = float(os.environ.get("DETECT_LATENCY_BUDGET_MS", "100"))
+        self._detect_latencies_ms: deque = deque(maxlen=100)
+        self._over_budget_streak = 0
+        self.reduced_accuracy_mode = False
+
+    def _update_latency_guard(self, latency_ms: float):
+        """Record one detect round-trip; flip reduced_accuracy_mode on p95 breach."""
+        self._detect_latencies_ms.append(latency_ms)
+        if len(self._detect_latencies_ms) < 10:
+            return  # warm-up window
+        ordered = sorted(self._detect_latencies_ms)
+        p95 = ordered[int(0.95 * (len(ordered) - 1))]
+        if p95 > self._detect_budget_ms:
+            self._over_budget_streak += 1
+            if self._over_budget_streak >= 3 and not self.reduced_accuracy_mode:
+                self.reduced_accuracy_mode = True
+                logger.warning(
+                    f"Camera {self.camera_id}: detect p95={p95:.0f}ms > budget "
+                    f"{self._detect_budget_ms:.0f}ms — reduced_accuracy_mode=true")
+        else:
+            if self._over_budget_streak and self.reduced_accuracy_mode:
+                logger.info(
+                    f"Camera {self.camera_id}: detect p95={p95:.0f}ms back within "
+                    f"budget {self._detect_budget_ms:.0f}ms — reduced_accuracy_mode=false")
+            self._over_budget_streak = 0
+            self.reduced_accuracy_mode = False
+
+    def detect_p95_ms(self) -> Optional[float]:
+        if len(self._detect_latencies_ms) < 10:
+            return None
+        ordered = sorted(self._detect_latencies_ms)
+        return round(ordered[int(0.95 * (len(ordered) - 1))], 1)
+
     def _crop_detection(self, frame: np.ndarray, detection: dict) -> np.ndarray:
         """Crop bounding box from frame."""
         x1, y1, x2, y2 = detection["bbox"]
@@ -141,6 +180,8 @@ class CameraWorker:
                     "status": overall,
                     "ssim": 0.0,
                     "metric": darkness["metric"],
+                    "reduced_accuracy_mode": self.reduced_accuracy_mode,
+                    "detect_p95_ms": self.detect_p95_ms(),
                 },
                 timeout=1.0,
             )
@@ -185,6 +226,7 @@ class CameraWorker:
                     logger.warning(f"Failed to send SWITCH_MODEL: {e}")
 
             self.req_queue.put((self._frame_id, self.camera_id, processed_frame))
+            detect_t0 = time.perf_counter()
 
             detections = None
             deadline = time.time() + 0.5
@@ -200,6 +242,11 @@ class CameraWorker:
 
             if detections is None:
                 detections = []
+                # Timeouts are breaches, not missing data — record the 500ms deadline
+                self._update_latency_guard(500.0)
+            else:
+                self._update_latency_guard(
+                    (time.perf_counter() - detect_t0) * 1000.0)
 
             tracks = self.tracker.update(detections, (h, w))
 

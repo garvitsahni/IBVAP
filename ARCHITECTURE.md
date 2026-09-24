@@ -55,12 +55,23 @@
 
 ### 3.1 Edge Processing Node
 - **Input:** RTSP stream per camera (real cameras or simulated via `mediamtx` + looped footage during development).
-- **Detection:** YOLOv8n — chosen for CPU-viability during laptop-stage development, upgradeable to larger weights on real edge GPU hardware later.
+- **Detection:** YOLOv8n — chosen for CPU-viability during laptop-stage development, upgradeable to larger weights on real edge GPU hardware later. The fusion `/detect` endpoint honors the `YOLO_MODEL` env (see `docs/yolo_benchmark.md`).
 - **Tracking:** ByteTrack, per-camera track IDs.
 - **Re-ID embedding:** OSNet (person), vehicle-ReID model — computed once per detection, attached to the event object.
 - **Night/weather adaptation:** brightness and visibility estimators branch the pipeline into alternate preprocessing/model weights before detection.
-- **Camera health:** frame-diff heuristics run continuously, independent of the detection pipeline, to catch tamper/blinding/drift.
+- **Camera health:** frame-diff heuristics run continuously, independent of the detection pipeline, to catch tamper/blinding/drift. Degraded-mode signal: each camera tracks detect round-trip latency; when p95 exceeds `DETECT_LATENCY_BUDGET_MS` (default 100 ms) for 3 consecutive evaluations it raises `reduced_accuracy_mode=true` in the camera health record (additive field), and clears it on recovery.
 - **Output contract:** see Section 5 (Data Contracts) — a structured event object, never raw video, sent to the Fusion Server.
+
+#### Model weights (all real trained weights; SHA256 + provenance in `models/MANIFEST.json`)
+
+| Model | File | Weights source | Measured eval (gate) |
+|---|---|---|---|
+| Person Re-ID (OSNet AIN) | `models/osnet_ain_x1_0.onnx` | torchreid pretrained (Market-1501) | footage temporal=0.780, margin=0.311 (gates ≥0.70/≥0.15) |
+| Vehicle Re-ID (ResNet34) | `models/vehicle_reid.onnx` | HF `dgwon/resnet-34-veri776-onnx` (VeRi-776-trained) | VeRi-776 Rank-1=0.865 @200 queries (gate ≥0.60) |
+| Plate detector (YOLOv11) | `models/plate_detector.onnx` | HF `morsetechlab/yolov11-license-plate-detection` | keremberke test split precision=0.999 @IoU 0.5 (gate ≥0.85) |
+| Face embedding (ArcFace) | `models/arcface_r100.onnx` | insightface buffalo_l zoo | [NOT GATED] smoke verify only |
+
+Gates are enforced by `tests/test_eval_gates.py` (runs `scripts/eval_accuracy.py`); models are verified at startup with `scripts/download_models.py --verify` (GPU-primary, loud CPU fallback).
 
 ### 3.2 BOP Fusion Server
 - **Re-ID matching engine:** cosine similarity search over a rolling embedding index; matches above threshold are linked into the same footprint chain.

@@ -1,0 +1,57 @@
+{
+  "generated_utc": "2026-09-24T04:23:31.033781+00:00",
+  "models": {
+    "osnet_ain_x1_0.onnx": {
+      "role": "person Re-ID embedding",
+      "source": "torchreid osnet_ain_x1_0 pretrained (Market-1501)",
+      "input": [
+        1,
+        3,
+        256,
+        128
+      ],
+      "eval": "footage gate (cam1+cam2): temporal=0.780 cross=0.469 margin=0.311 tracks=7 @2026-09-24",
+      "bytes": 8742440,
+      "sha256": "89b8c587b5de026aeb54e46efeb6c0b411ba58e73681e2c107e7220a8ffd6d6b"
+    },
+    "vehicle_reid.onnx": {
+      "role": "vehicle Re-ID embedding",
+      "source": "https://huggingface.co/dgwon/resnet-34-veri776-onnx (resnet34_veri776.onnx, VeRi-776-trained)",
+      "input": [
+        1,
+        3,
+        256,
+        256
+      ],
+      "eval": "VeRi-776 Rank-1=0.865 (200 queries, stride-5 gallery, ImageNet-norm) @2026-09-24",
+      "bytes": 85124884,
+      "sha256": "f88187d96c8acfb6adfdca1003e3609f93e98ac55bf49d75c2b875de364f1875"
+    },
+    "plate_detector.onnx": {
+      "role": "license-plate region detection",
+      "source": "https://huggingface.co/morsetechlab/yolov11-license-plate-detection (license-plate-finetune-v1n.onnx)",
+      "input": [
+        1,
+        3,
+        320,
+        320
+      ],
+      "eval": "keremberke plate test split precision=0.999 (860/861 TP, 882 images, IoU>=0.5) @2026-09-24",
+      "bytes": 10481682,
+      "sha256": "693133a1db97a3ba1e90068986f80afb72c3fcddb681e57181a89a9a3dc351d6"
+    },
+    "arcface_r100.onnx": {
+      "role": "face embedding",
+      "source": "insightface buffalo_l model zoo (w600k/glint360k recognition ONNX)",
+      "input": [
+        1,
+        3,
+        112,
+        112
+      ],
+      "eval": "[NOT GATED] smoke verify only (no face-identity eval set bundled)",
+      "bytes": 174383860,
+      "sha256": "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43"
+    }
+  }
+}

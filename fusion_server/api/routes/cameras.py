@@ -64,6 +64,10 @@ class CameraHealthRequest(BaseModel):
     status: str
     ssim: float
     metric: Optional[float] = None
+    # Degraded-mode signal (additive): edge sets true when detect p95 latency
+    # exceeds DETECT_LATENCY_BUDGET_MS for consecutive evaluations.
+    reduced_accuracy_mode: Optional[bool] = None
+    detect_p95_ms: Optional[float] = None
 
 
 class CameraHealthResponse(BaseModel):
@@ -280,6 +284,8 @@ async def update_camera_health(
         "status": request.status,
         "ssim": request.ssim,
         "metric": request.metric,
+        "reduced_accuracy_mode": request.reduced_accuracy_mode,
+        "detect_p95_ms": request.detect_p95_ms,
     })
 
     # Update DB camera status if it exists (graceful if table missing)

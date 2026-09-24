@@ -127,106 +127,47 @@ else:
     return False
 
 
-def export_vehicle_reid_to_onnx():
-    """Export a vehicle Re-ID model to ONNX."""
-    dest = MODELS_DIR / "vehicle_reid.onnx"
+def download_hf_onnx(repo_id: str, filename: str, dest_name: str,
+                     source_note: str) -> bool:
+    """Fetch a pretrained ONNX model from the Hugging Face Hub into models/.
+
+    Replaces the old random-weight torch builders — every model this script
+    installs must be trained weights (AGENTS.md no-faking rule).
+    """
+    dest = MODELS_DIR / dest_name
     if dest.exists() and dest.stat().st_size > 100_000:
         print(f"  [SKIP] {dest.name} already exists ({dest.stat().st_size / 1e6:.1f} MB)")
         return True
-
-    print("  [INFO] Building vehicle Re-ID ONNX model (ResNet50 backbone)...")
-    script = r'''
-import warnings
-warnings.filterwarnings("ignore")
-import torch
-import torch.nn as nn
-from torchvision import models
-
-class VehicleReID(nn.Module):
-    def __init__(self, embedding_dim=512):
-        super().__init__()
-        backbone = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
-        self.features = nn.Sequential(*list(backbone.children())[:-1])
-        self.fc = nn.Linear(2048, embedding_dim)
-
-    def forward(self, x):
-        feat = self.features(x).flatten(1)
-        emb = self.fc(feat)
-        emb = torch.nn.functional.normalize(emb, p=2, dim=1)
-        return emb
-
-model = VehicleReID(embedding_dim=512)
-model.eval()
-
-dummy = torch.randn(1, 3, 224, 224)
-torch.onnx.export(
-    model, dummy, "models/vehicle_reid.onnx",
-    input_names=["input"], output_names=["embedding"],
-    dynamic_axes={"input": {0: "batch"}, "embedding": {0: "batch"}},
-    opset_version=17,
-    dynamo=False,
-)
-print("Vehicle ReID exported successfully")
-'''
-    if run_export_script(script, timeout=180):
+    print(f"  [INFO] Downloading {source_note} ...")
+    try:
+        from huggingface_hub import hf_hub_download
+        src = hf_hub_download(repo_id, filename)
+        dest.write_bytes(Path(src).read_bytes())
         size = dest.stat().st_size / 1e6
         print(f"  [DONE] {dest.name} ({size:.1f} MB)")
         return True
-    return False
+    except Exception as e:
+        print(f"  [FAIL] {e}")
+        return False
+
+
+def export_vehicle_reid_to_onnx():
+    """Install vehicle Re-ID weights: ResNet34 trained on VeRi-776 (512-d, 256x256)."""
+    return download_hf_onnx(
+        "dgwon/resnet-34-veri776-onnx", "resnet34_veri776.onnx",
+        "vehicle_reid.onnx",
+        "vehicle Re-ID ResNet34 (VeRi-776-trained) from HF dgwon/resnet-34-veri776-onnx",
+    )
 
 
 def export_plate_detector_to_onnx():
-    """Export a plate detection model to ONNX."""
-    dest = MODELS_DIR / "plate_detector.onnx"
-    if dest.exists() and dest.stat().st_size > 100_000:
-        print(f"  [SKIP] {dest.name} already exists ({dest.stat().st_size / 1e6:.1f} MB)")
-        return True
-
-    print("  [INFO] Building plate detector ONNX model (MobileNet-SSD style)...")
-    script = r'''
-import warnings
-warnings.filterwarnings("ignore")
-import torch
-import torch.nn as nn
-from torchvision import models
-
-class PlateDetector(nn.Module):
-    def __init__(self):
-        super().__init__()
-        backbone = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.IMAGENET1K_V1)
-        self.features = backbone.features
-        self.classifier = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Flatten(),
-            nn.Linear(576, 256),
-            nn.ReLU(),
-            nn.Linear(256, 5),  # [confidence, x1, y1, x2, y2]
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x):
-        feat = self.features(x)
-        out = self.classifier(feat)
-        return out
-
-model = PlateDetector()
-model.eval()
-
-dummy = torch.randn(1, 3, 320, 320)
-torch.onnx.export(
-    model, dummy, "models/plate_detector.onnx",
-    input_names=["input"], output_names=["output"],
-    dynamic_axes={"input": {0: "batch"}},
-    opset_version=17,
-    dynamo=False,
-)
-print("Plate detector exported successfully")
-'''
-    if run_export_script(script, timeout=180):
-        size = dest.stat().st_size / 1e6
-        print(f"  [DONE] {dest.name} ({size:.1f} MB)")
-        return True
-    return False
+    """Install plate detector weights: YOLOv11 license-plate detector (raw [5,N] output)."""
+    return download_hf_onnx(
+        "morsetechlab/yolov11-license-plate-detection",
+        "license-plate-finetune-v1n.onnx",
+        "plate_detector.onnx",
+        "YOLOv11 plate detector from HF morsetechlab/yolov11-license-plate-detection",
+    )
 
 
 def verify_all() -> int:
@@ -265,15 +206,84 @@ def verify_all() -> int:
     return 0 if all_ok else 1
 
 
+# Static provenance + measured eval scores (re-measured via
+# scripts/eval_accuracy.py; only real measured numbers go here — update the
+# score fields only from a fresh eval run).
+MODEL_META = {
+    "osnet_ain_x1_0.onnx": {
+        "role": "person Re-ID embedding",
+        "source": "torchreid osnet_ain_x1_0 pretrained (Market-1501)",
+        "input": [1, 3, 256, 128],
+        "eval": "footage gate (cam1+cam2): temporal=0.780 cross=0.469 "
+                "margin=0.311 tracks=7 @2026-09-24",
+    },
+    "vehicle_reid.onnx": {
+        "role": "vehicle Re-ID embedding",
+        "source": "https://huggingface.co/dgwon/resnet-34-veri776-onnx "
+                  "(resnet34_veri776.onnx, VeRi-776-trained)",
+        "input": [1, 3, 256, 256],
+        "eval": "VeRi-776 Rank-1=0.865 (200 queries, stride-5 gallery, "
+                "ImageNet-norm) @2026-09-24",
+    },
+    "plate_detector.onnx": {
+        "role": "license-plate region detection",
+        "source": "https://huggingface.co/morsetechlab/yolov11-license-plate-detection "
+                  "(license-plate-finetune-v1n.onnx)",
+        "input": [1, 3, 320, 320],
+        "eval": "keremberke plate test split precision=0.999 (860/861 TP, "
+                "882 images, IoU>=0.5) @2026-09-24",
+    },
+    "arcface_r100.onnx": {
+        "role": "face embedding",
+        "source": "insightface buffalo_l model zoo (w600k/glint360k recognition ONNX)",
+        "input": [1, 3, 112, 112],
+        "eval": "[NOT GATED] smoke verify only (no face-identity eval set bundled)",
+    },
+}
+
+
+def write_manifest() -> int:
+    """Write models/MANIFEST.json: sha256 + provenance + measured eval score."""
+    import hashlib
+    import json
+    from datetime import datetime, timezone
+
+    ensure_dir()
+    manifest = {"generated_utc": datetime.now(timezone.utc).isoformat(),
+                "models": {}}
+    all_present = True
+    for name, meta in MODEL_META.items():
+        path = MODELS_DIR / name
+        if not path.is_file():
+            print(f"  [MISSING] {name}")
+            all_present = False
+            continue
+        sha = hashlib.sha256(path.read_bytes()).hexdigest()
+        manifest["models"][name] = {
+            **meta,
+            "bytes": path.stat().st_size,
+            "sha256": sha,
+        }
+        print(f"  [OK] {name} sha256={sha[:16]}…")
+    out = MODELS_DIR / "MANIFEST.json"
+    out.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    print(f"  wrote {out}")
+    return 0 if all_present else 1
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="IBVAP model downloader / verifier")
     parser.add_argument("--verify", action="store_true",
                         help="verify installed models (load + smoke inference) instead of downloading")
+    parser.add_argument("--manifest", action="store_true",
+                        help="write models/MANIFEST.json (sha256 + provenance + eval scores)")
     args = parser.parse_args()
     if args.verify:
         ensure_dir()
         return verify_all()
+    if args.manifest:
+        return write_manifest()
 
     print("=" * 60)
     print("IBVAP Model Downloader / Exporter")
@@ -288,10 +298,10 @@ def main():
     print("\n[2/4] ArcFace R100 (Face Embedding)")
     results["arcface"] = export_arcface_to_onnx()
 
-    print("\n[3/4] Vehicle Re-ID (ResNet50)")
+    print("\n[3/4] Vehicle Re-ID (ResNet34-VeRi-776)")
     results["vehicle_reid"] = export_vehicle_reid_to_onnx()
 
-    print("\n[4/4] Plate Detector (MobileNet-SSD)")
+    print("\n[4/4] Plate Detector (YOLOv11 license-plate)")
     results["plate_detector"] = export_plate_detector_to_onnx()
 
     # Summary
