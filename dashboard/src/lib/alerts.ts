@@ -47,7 +47,7 @@ export function mapApiAlert(raw: Alert): FeedAlert {
     severity: mapSeverity(raw.threat_score),
     cameraId: raw.camera_id,
     timestamp: raw.timestamp,
-    status: raw.status,
+    status: raw.status ?? "fired",
     plateText: raw.plate_text || null,
     reasonDetail: raw.reason_detail || null,
     threatScore: raw.threat_score,

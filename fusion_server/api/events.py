@@ -343,6 +343,7 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
                 "plate_text": alert.plate_text,
                 "reason_detail": alert.reason_detail,
                 "snapshot_path": alert.snapshot_path,
+                "status": alert.status,
                 "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, "isoformat") else str(alert.timestamp),
             }))
         except Exception:
