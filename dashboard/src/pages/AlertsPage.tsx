@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertFeed } from '@/components/alert/AlertFeed';
 import { AlertDetailColumn } from '@/components/alert/AlertDetailColumn';
@@ -8,9 +8,17 @@ import { mapApiAlert, isOpenStatus, type FeedAlert, type Severity } from '@/lib/
 import type { Alert as ApiAlert } from '@/types/api';
 
 type SeverityFilter = 'all' | Severity;
-type StatusFilter = 'all' | 'open' | 'acknowledged';
+type StatusFilter = 'all' | 'open' | 'acknowledged' | 'escalated' | 'false_positive';
 
 const SEVERITIES: SeverityFilter[] = ['all', 'critical', 'high', 'medium', 'low', 'info'];
+const STATUSES: StatusFilter[] = ['all', 'open', 'acknowledged', 'escalated', 'false_positive'];
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  all: 'All statuses',
+  open: 'Open',
+  acknowledged: 'Acknowledged',
+  escalated: 'Escalated',
+  false_positive: 'False positive',
+};
 
 interface AlertsPageProps {
   initialSelectedId?: string | null;
@@ -32,23 +40,30 @@ export function AlertsPage({ initialSelectedId = null, onSelectedIdChange }: Ale
       .finally(() => setLoading(false));
   }, []);
 
+  // Keep the latest callback in a ref so the SSE subscription never re-registers
+  // (useSSE.on has no unsubscribe — changing identity per parent render would stack handlers)
+  const onSelectedIdChangeRef = useRef(onSelectedIdChange);
+  useEffect(() => {
+    onSelectedIdChangeRef.current = onSelectedIdChange;
+  }, [onSelectedIdChange]);
+
   const { on } = useSSE('/api/v1/alerts/stream');
   useEffect(() => {
     on('alert_fired', (data) => {
       const mapped = mapApiAlert(data as unknown as ApiAlert);
       setAlerts((prev) => [mapped, ...prev]);
       setSelectedAlertId(mapped.id); // newest becomes selection
-      onSelectedIdChange?.(mapped.id);
+      onSelectedIdChangeRef.current?.(mapped.id);
     });
-  }, [on, onSelectedIdChange]);
+  }, [on]);
 
   // Newest auto-selected when none selected (initialSelectedId from nav may miss if list still loading)
   useEffect(() => {
     if (!selectedAlertId && alerts.length > 0) {
       setSelectedAlertId(alerts[0].id);
-      onSelectedIdChange?.(alerts[0].id);
+      onSelectedIdChangeRef.current?.(alerts[0].id);
     }
-  }, [alerts, selectedAlertId, onSelectedIdChange]);
+  }, [alerts, selectedAlertId]);
 
   const severityCounts = useMemo(() => {
     const counts: Record<string, number> = { all: alerts.length, critical: 0, high: 0, medium: 0, low: 0, info: 0 };
@@ -60,7 +75,7 @@ export function AlertsPage({ initialSelectedId = null, onSelectedIdChange }: Ale
     return alerts.filter((a) => {
       if (severityFilter !== 'all' && a.severity !== severityFilter) return false;
       if (statusFilter === 'open' && !isOpenStatus(a.status)) return false;
-      if (statusFilter === 'acknowledged' && a.status !== 'acknowledged') return false;
+      if (statusFilter !== 'all' && statusFilter !== 'open' && a.status !== statusFilter) return false;
       return true;
     });
   }, [alerts, severityFilter, statusFilter]);
@@ -103,7 +118,7 @@ export function AlertsPage({ initialSelectedId = null, onSelectedIdChange }: Ale
           </button>
         ))}
         <span className="mx-1 h-4 w-px bg-border" />
-        {(['all', 'open', 'acknowledged'] as StatusFilter[]).map((s) => (
+        {STATUSES.map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
@@ -113,7 +128,7 @@ export function AlertsPage({ initialSelectedId = null, onSelectedIdChange }: Ale
                 : 'rounded-full border border-border px-3 py-1 text-[11px] font-medium text-text-muted hover:bg-surface-2'
             }
           >
-            {s === 'all' ? 'All statuses' : s === 'open' ? 'Open' : 'Acknowledged'}
+            {STATUS_LABELS[s]}
           </button>
         ))}
       </div>
@@ -140,7 +155,11 @@ export function AlertsPage({ initialSelectedId = null, onSelectedIdChange }: Ale
             />
           </div>
           <div className="min-w-0">
-            <AlertDetailColumn alert={selectedAlert} onChanged={handleChanged} />
+            <AlertDetailColumn
+              key={selectedAlert?.id ?? 'none'}
+              alert={selectedAlert}
+              onChanged={handleChanged}
+            />
           </div>
         </div>
       )}
