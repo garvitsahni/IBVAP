@@ -52,3 +52,12 @@ def client(db_session):
         with TestClient(app) as test_client:
             yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_cooldown_gate():
+    """Fresh CooldownGate per test — module singleton must not leak dedup state."""
+    from fusion_server.services.cooldown_gate import get_cooldown_gate
+    get_cooldown_gate().reset()
+    yield
+    get_cooldown_gate().reset()

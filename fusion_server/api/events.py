@@ -181,6 +181,18 @@ def _ingest_event(event: "DetectionEventCreate", db: Session) -> dict:
 
     # Fire watchlist alert
     if final_match is not None:
+        from fusion_server.services.cooldown_gate import get_cooldown_gate
+        watchlist_object_id = object_id or f"unknown-{db_event.id}"
+        if not get_cooldown_gate().should_fire(
+            event.camera_id,
+            watchlist_object_id,
+            "watchlist_match",
+            violating=True,
+            now=event.timestamp.timestamp(),
+        ):
+            final_match = None  # deduped within 60s — no alert, no ledger write
+
+    if final_match is not None:
         threat_context = ThreatContext(
             object_type=event.object_type,
             time_of_day="day",
@@ -190,7 +202,7 @@ def _ingest_event(event: "DetectionEventCreate", db: Session) -> dict:
         score = calculate_threat_score([], threat_context)
         alert = Alert(
             alert_id=str(uuid.uuid4()),
-            object_id=object_id or f"unknown-{db_event.id}",
+            object_id=watchlist_object_id,
             camera_id=event.camera_id,
             timestamp=event.timestamp,
             reason="watchlist_match",

@@ -16,6 +16,7 @@ from fusion_server.core.threat_scoring import calculate_threat_score, ThreatCont
 from fusion_server.core.suspicious_activity import SuspiciousActivityDetector
 from fusion_server.core.alert_ledger import AlertLedger
 from fusion_server.db.models import Alert
+from fusion_server.services.cooldown_gate import get_cooldown_gate
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,12 @@ class AlertPipeline:
             object_type=object_type,
         )
 
+        # 3b. Presence update: deactivate ROI keys the object is no longer
+        # violating (per-ROI re-arm). Watchlist keys untouched (time-only).
+        get_cooldown_gate().update_presence(
+            camera_id, object_id, {v.roi_name for v in violations}
+        )
+
         # 4. Check suspicious activity
         suspicious_activities = []
         for roi in self.rule_engine.rois:
@@ -110,6 +117,15 @@ class AlertPipeline:
         alerts = []
         if self.db is not None:
             for violation in violations:
+                gate = get_cooldown_gate()
+                if not gate.should_fire(
+                    camera_id,
+                    object_id,
+                    f"roi:{violation.roi_name}",
+                    violating=True,
+                    now=ts_float,
+                ):
+                    continue  # deduped — violation stays in result["violations"]
                 threat_context = ThreatContext(
                     object_type=object_type,
                     time_of_day=self._infer_time_of_day(timestamp),

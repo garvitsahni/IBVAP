@@ -112,6 +112,11 @@ class TestTimeOfDayInference:
         event_night = _make_event(timestamp=datetime(2025, 6, 15, 2, 0, 0))
 
         r_day = pipeline_day.process(event_day)
+        # Same object_id would be deduped by the CooldownGate singleton across
+        # these two process() calls; reset so this test compares threat scores,
+        # not cooldown behavior.
+        from fusion_server.services.cooldown_gate import get_cooldown_gate
+        get_cooldown_gate().reset()
         r_night = pipeline_night.process(event_night)
 
         assert r_day["alerts"][0].threat_score < r_night["alerts"][0].threat_score

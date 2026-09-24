@@ -309,6 +309,10 @@ class TestBackwardCompatibility:
 
         with patch("fusion_server.services.alert_pipeline.asyncio.create_task"):
             result_with = pipeline_with.process(_make_event())
+        # Second identical event would be deduped by the CooldownGate singleton;
+        # reset so this test compares enrichment wiring, not cooldown behavior.
+        from fusion_server.services.cooldown_gate import get_cooldown_gate
+        get_cooldown_gate().reset()
         result_without = pipeline_without.process(_make_event())
 
         # Same alert structure
