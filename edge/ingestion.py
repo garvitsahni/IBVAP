@@ -24,7 +24,12 @@ class RTSPIngestion:
         source = int(self.url) if str(self.url).isdigit() else self.url
         for attempt in range(self.max_retries):
             try:
-                self._cap = cv2.VideoCapture(source)
+                # For webcam indices on Windows, prefer DirectShow: MSMF (-1072875772)
+                # frequently fails to grab frames while the device is shared.
+                if isinstance(source, int) and hasattr(cv2, "CAP_DSHOW"):
+                    self._cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+                else:
+                    self._cap = cv2.VideoCapture(source)
                 if self._cap.isOpened():
                     logger.info(f"Connected to {self.url}")
                     return True
