@@ -76,6 +76,11 @@ def _get_model():
                 # Measured: v8m GPU 29.3 FPS (real-time), v8m CPU 2.4 FPS —
                 # so GPU tier defaults to v8m, CPU tier to v8n.
                 weights = os.environ.get("YOLO_MODEL")
+                if weights and not os.path.exists(weights):
+                    # Fine-tuned weights pinned but file absent (fresh clone?) —
+                    # fall back to stock tier default instead of 500ing.
+                    logger.warning(f"YOLO_MODEL={weights} not found — falling back to stock weights")
+                    weights = None
                 if not weights:
                     try:
                         import torch
