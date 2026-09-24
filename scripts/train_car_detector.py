@@ -22,7 +22,8 @@ import sys
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
-# Local label id -> COCO id (keep the 80-class head, preserve downstream ids)
+# Local label id -> COCO id (keep the 80-class head, preserve downstream ids).
+# Ids already in COCO space (2/3, e.g. verified pseudo-labels) pass through.
 REMAP = {0: 2, 1: 3}
 
 COCO80 = [
@@ -43,11 +44,12 @@ COCO80 = [
 
 
 def labeled_stems(pool, labels):
+    # Frames WITH a label file count — including empty ones, which train as
+    # explicit background negatives (verified-empty dark frames).
     stems = []
     for img in glob.glob(os.path.join(pool, "*.jpg")):
         stem = os.path.splitext(os.path.basename(img))[0]
-        lab = os.path.join(labels, stem + ".txt")
-        if os.path.exists(lab) and open(lab, encoding="utf-8-sig").read().strip():
+        if os.path.exists(os.path.join(labels, stem + ".txt")):
             stems.append(stem)
     return sorted(stems)
 
@@ -105,7 +107,8 @@ def main() -> int:
                 p = line.strip().split(" ")
                 if not p or not p[0]:
                     continue
-                out.append(" ".join([str(REMAP[int(p[0])])] + p[1:]))
+                cid = int(p[0])
+                out.append(" ".join([str(REMAP.get(cid, cid))] + p[1:]))
             open(os.path.join(ft, split, "labels", s + ".txt"), "w").write("\n".join(out) + "\n")
     open(os.path.join(ft, "val_files.txt"), "w").write("\n".join(sorted(val)) + "\n")
 

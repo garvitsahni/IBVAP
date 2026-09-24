@@ -61,7 +61,13 @@ def test_val_split_recall():
     from ultralytics import YOLO
     model = YOLO(WEIGHTS)
     val_labels = os.path.join(FT, "val", "labels")
-    positives = [os.path.splitext(f)[0] for f in os.listdir(val_labels) if f.endswith(".txt")]
+    positives = []
+    for f in os.listdir(val_labels):
+        if not f.endswith(".txt"):
+            continue
+        content = open(os.path.join(val_labels, f), encoding="utf-8-sig").read().strip()
+        if content:
+            positives.append(os.path.splitext(f)[0])
     assert len(positives) >= 10, f"val split too small: {len(positives)}"
     rec = _recall(model, os.path.join(FT, "val", "images"), positives)
     assert rec >= 0.80, f"val recall {rec:.3f} < 0.80"
