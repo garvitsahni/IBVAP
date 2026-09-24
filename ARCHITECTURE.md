@@ -106,9 +106,12 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
   "track_id": "string",
   "bbox": { "x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0 },
   "embedding": [float, ...],
-  "confidence": float
+  "confidence": float,
+  "snapshot": "string | null"
 }
 ```
+
+> Contract addition (2026-09-23, FLAGGED TO ALL PHASE OWNERS): `DetectionEvent.snapshot` is an OPTIONAL base64-encoded JPEG thumbnail (≤640px long edge, quality 80) of the triggering frame, attached by edge nodes at most once per camera per second when an object event is published. Edge→fusion only; never persisted as base64 (fusion decodes post-broadcast, best-effort, to `storage/alerts/{alert_id}.jpg` and stores `Alert.snapshot_path`; failure ⇒ `snapshot_path` stays NULL and never blocks alert delivery). Encode failure ⇒ field omitted entirely (same as `embedding: null` semantics). This is ONE still image per throttled event — strictly less than the already-permitted short event-triggered clips; no raw video crosses the boundary (AGENTS.md Rule 2). Old edge nodes simply omit the field ⇒ `snapshot_path` stays NULL.
 
 ### FootprintEntry (fusion server, ledger)
 ```json

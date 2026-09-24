@@ -20,8 +20,11 @@ ENV_DIR = "IBVAP_SNAPSHOT_DIR"
 
 
 def get_snapshot_dir() -> str:
+    # Default MUST agree with the serve endpoint's root (fusion_server/api/alerts.py
+    # resolves the stored relative path `storage/alerts/...` against the REPO root,
+    # i.e. three dirnames up from this file) — otherwise default-config saves 404.
     return os.environ.get(ENV_DIR) or os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
         "storage", "alerts",
     )
 
@@ -48,8 +51,8 @@ def save_alert_snapshots(alert_ids, snapshot_b64) -> "str | None":
     """
     if not snapshot_b64 or not alert_ids:
         return None
-    alert_id = alert_ids[0]
     try:
+        alert_id = alert_ids[0]  # inside try: non-sequence truthy input must not raise
         data = decode_jpeg_b64(snapshot_b64)
         out_dir = get_snapshot_dir()
         os.makedirs(out_dir, exist_ok=True)
@@ -58,7 +61,7 @@ def save_alert_snapshots(alert_ids, snapshot_b64) -> "str | None":
             fh.write(data)
         return f"storage/alerts/{alert_id}.jpg"
     except Exception as exc:
-        logger.warning("snapshot save failed for alert %s: %s", alert_id, exc)
+        logger.warning("snapshot save failed for alert_ids %r: %s", alert_ids, exc)
         return None
 
 

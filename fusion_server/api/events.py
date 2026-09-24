@@ -356,8 +356,8 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
             _snap_alert_ids += [a.alert_id for a in (ingest.get("extra_alerts") or [])]
             if _snap_alert_ids:
                 asyncio.ensure_future(_persist_snapshot(_snap_alert_ids, event.snapshot))
-        except Exception:
-            pass  # Never block alert delivery on snapshot failure
+        except Exception as exc:
+            logger.warning("snapshot scheduling failed (snapshot dropped): %s", exc)
 
     # Broadcast detection to SSE subscribers (non-blocking)
     try:
