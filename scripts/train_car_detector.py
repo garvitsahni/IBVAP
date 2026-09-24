@@ -26,6 +26,15 @@ sys.path.insert(0, REPO_ROOT)
 # Ids already in COCO space (2/3, e.g. verified pseudo-labels) pass through.
 REMAP = {0: 2, 1: 3}
 
+# Val pins: first-session (dark-room) positives that MUST validate the model —
+# without these, the val split can end up all second-session and the gate
+# cannot see the dark-room regression this fine-tune exists to fix.
+PIN_VAL = [
+    "frame_20260924-171025_0689",  # dark red rear-view
+    "frame_20260924-171043_0691",  # dark red rear-view, shifted
+    "frame_20260924-171005_0667",  # dark orange side-view, small
+]
+
 COCO80 = [
     "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
     "truck", "boat", "traffic light", "fire hydrant", "stop sign",
@@ -92,6 +101,9 @@ def main() -> int:
     nvb = max(1, round(len(bike) * args.val_frac))
     nvc = max(1, round(len(car) * args.val_frac))
     val = set(bike[:nvb] + car[:nvc])
+    for pinned in PIN_VAL:  # deterministic dark-room coverage (see above)
+        if pinned in stems:
+            val.add(pinned)
     train = [s for s in stems if s not in val]
     print(f"train={len(train)} (car={len([s for s in train if s in car])}, "
           f"bike={len([s for s in train if s in bike])}) val={len(val)}")
