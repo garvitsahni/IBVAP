@@ -20,5 +20,7 @@ data/
 models/*.bak
 storage/
 debug/
+datasets/
+models/car-finetune-v1/
 yolov8m.pt
 dashboard/tsconfig.tsbuildinfo
