@@ -1,13 +1,55 @@
 """
 Publishes DetectionEvents to the fusion server via HTTP POST.
 """
+import base64
+import time as _time
 import requests
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+
+import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 VEHICLE_CLASSES = {2, 3, 5, 7}
+
+
+def encode_snapshot(frame, max_side: int = 640, quality: int = 80) -> Optional[str]:
+    """
+    Encode a BGR frame as base64 JPEG for alert thumbnails (≤640px long edge).
+    Returns None on any failure — callers must treat that as 'omit the field'.
+    RULE 2: this is a single still, never video.
+    """
+    if frame is None or not isinstance(frame, np.ndarray) or frame.ndim != 3:
+        return None
+    try:
+        h, w = frame.shape[:2]
+        long_edge = max(h, w)
+        if long_edge > max_side:
+            scale = max_side / float(long_edge)
+            frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
+        ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+        if not ok:
+            return None
+        return base64.b64encode(buf.tobytes()).decode("ascii")
+    except Exception:
+        return None
+
+
+class SnapshotThrottle:
+    """Allow a snapshot attach at most once per `interval` seconds."""
+
+    def __init__(self, interval: float = 1.0):
+        self.interval = interval
+        self._last = None
+
+    def should_attach(self, now: float = None) -> bool:
+        now = _time.time() if now is None else now
+        if self._last is None or (now - self._last) >= self.interval:
+            self._last = now
+            return True
+        return False
 
 
 class EventPublisher:

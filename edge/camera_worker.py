@@ -13,7 +13,7 @@ import numpy as np
 from edge.ingestion import RTSPIngestion
 from edge.night_weather import NightWeatherProcessor
 from edge.tracker import Tracker
-from edge.event_publisher import EventPublisher
+from edge.event_publisher import EventPublisher, SnapshotThrottle, encode_snapshot
 from edge.visualizer import Visualizer
 from edge.camera_health import CameraHealthService
 from edge.detector import SWITCH_MODEL
@@ -62,6 +62,7 @@ class CameraWorker:
         self.night_weather = NightWeatherProcessor()
         self.tracker = Tracker()
         self.publisher = EventPublisher(fusion_url)
+        self._snapshot_throttle = SnapshotThrottle(interval=1.0)
         self.visualizer = Visualizer(camera_id, mjpeg_port, enabled=display)
 
         self.req_queue = req_queue
@@ -362,6 +363,10 @@ class CameraWorker:
 
             # Publish events with embeddings
             ts_iso = timestamp.isoformat() + "Z"
+            # One snapshot per frame batch, throttled ≤1/sec (RULE 2: single still).
+            snapshot_b64 = None
+            if tracks and self._snapshot_throttle.should_attach():
+                snapshot_b64 = encode_snapshot(frame)
             for track in tracks:
                 object_type = "person" if track.class_name == "person" else "vehicle"
                 embedding = reid_embeddings.get((self._frame_id, track.track_id))
@@ -381,6 +386,8 @@ class CameraWorker:
                     event["face_embedding"] = face_emb.tolist()
                 if plate_text is not None:
                     event["plate_text"] = plate_text
+                if snapshot_b64 is not None:
+                    event["snapshot"] = snapshot_b64
                 self.publisher.publish(event)
 
             if not self.visualizer.render(frame, tracks, mode_info):
