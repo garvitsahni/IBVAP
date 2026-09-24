@@ -112,6 +112,11 @@ class CameraWorker:
         self._over_budget_streak = 0
         self.reduced_accuracy_mode = False
 
+        # ReID queue health (verification signal): stale drops indicate FIFO
+        # desync; a run of zero-hit frames means the service isn't answering.
+        self._reid_stale_dropped = 0
+        self._reid_zero_hit_frames = 0
+
     def _update_latency_guard(self, latency_ms: float):
         """Record one detect round-trip; flip reduced_accuracy_mode on p95 breach."""
         self._detect_latencies_ms.append(latency_ms)
@@ -257,15 +262,46 @@ class CameraWorker:
                 object_type = "person" if track.class_name == "person" else "vehicle"
                 self.reid_req_queue.put((self._frame_id, self.camera_id, track.track_id, crop, object_type))
 
-            # Collect ReID embeddings (with timeout)
+            # Collect ReID embeddings for THIS frame only. Responses naming
+            # any other frame (or camera) are dropped, not left queued: a
+            # late response kept in the queue desyncs the FIFO permanently —
+            # every later read returns the previous frame's result, the
+            # publish lookup misses, and all subsequent embeddings are lost.
             reid_embeddings = {}
-            for _ in range(len(tracks)):
-                try:
-                    fid, cid, tid, embedding, obj_type = self.reid_res_queue.get(timeout=0.2)
-                    if cid == self.camera_id:
+            if tracks:
+                needed = {(self._frame_id, t.track_id) for t in tracks}
+                deadline = time.time() + 0.5
+                while time.time() < deadline and not needed.issubset(reid_embeddings):
+                    try:
+                        fid, cid, tid, embedding, obj_type = self.reid_res_queue.get(timeout=0.1)
+                    except Exception:
+                        continue
+                    if cid == self.camera_id and (fid, tid) in needed:
                         reid_embeddings[(fid, tid)] = embedding
-                except Exception:
-                    continue
+                    elif cid != self.camera_id:
+                        # Shared queue (multi-cam runs): sibling's response —
+                        # put it back rather than starve the other worker.
+                        self.reid_res_queue.put((fid, cid, tid, embedding, obj_type))
+                    else:
+                        # Same camera, wrong frame: stale — drop it. Keeping it
+                        # would desync the FIFO permanently (every later read
+                        # returns the previous frame's result and the publish
+                        # lookup never matches).
+                        self._reid_stale_dropped += 1
+                        if self._reid_stale_dropped % 50 == 1:
+                            logger.warning(
+                                f"Camera {self.camera_id}: dropped {self._reid_stale_dropped} stale ReID "
+                                f"response(s) (got frame {fid}, need {self._frame_id})"
+                            )
+                if any(v is not None for v in reid_embeddings.values()):
+                    self._reid_zero_hit_frames = 0
+                else:
+                    self._reid_zero_hit_frames += 1
+                    if self._reid_zero_hit_frames % 300 == 1:
+                        logger.warning(
+                            f"Camera {self.camera_id}: no usable ReID embeddings for "
+                            f"{self._reid_zero_hit_frames} frame(s) — check ReID service"
+                        )
 
             # Face detection + embedding for person tracks
             face_embeddings = {}

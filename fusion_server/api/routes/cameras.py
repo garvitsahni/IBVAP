@@ -306,8 +306,30 @@ async def update_camera_health(
         from fusion_server.core.alert_ledger import AlertLedger
         from fusion_server.core.threat_scoring import calculate_threat_score, ThreatContext
         from fusion_server.core.rule_engine import RuleViolation
+        from fusion_server.services.cooldown_gate import get_cooldown_gate
+        import time as _time
 
         alert_reason = f"camera_{request.status}"
+
+        # Edge re-posts health every few seconds while a condition persists —
+        # dedup via the same deterministic gate as ROI/watchlist so a stuck
+        # condition writes at most one ledger row per 60s (and re-arms only
+        # after the camera reports ok again).
+        if not get_cooldown_gate().should_fire(
+            camera_id,
+            f"camera_{camera_id}",
+            f"health:{alert_reason}",
+            violating=True,
+            now=_time.time(),
+        ):
+            return CameraHealthResponse(
+                camera_id=camera_id,
+                status=request.status,
+                ssim=request.ssim,
+                last_updated=health_store.get(camera_id).get("last_updated", ""),
+                alert_fired=False,
+                alert_reason=None,
+            )
 
         violation_type_map = {
             "blinding": "camera_blinding",
