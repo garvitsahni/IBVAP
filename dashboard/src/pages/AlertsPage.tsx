@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AlertFeed } from '@/components/alert/AlertFeed';
 import { AlertDetailColumn } from '@/components/alert/AlertDetailColumn';
@@ -26,8 +27,10 @@ interface AlertsPageProps {
 }
 
 export function AlertsPage({ initialSelectedId = null, onSelectedIdChange }: AlertsPageProps) {
+  const location = useLocation();
+  const navSelectId = (location.state as { selectAlertId?: string } | null)?.selectAlertId ?? null;
   const [alerts, setAlerts] = useState<FeedAlert[]>([]);
-  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(initialSelectedId);
+  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(navSelectId ?? initialSelectedId);
   const [loading, setLoading] = useState(true);
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');

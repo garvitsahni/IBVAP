@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom"
 import { Sidebar } from "./Sidebar"
 import { TopBar } from "./TopBar"
+import { AlertBanner } from "@/components/alert/AlertBanner"
 
 export function ConsoleLayout() {
   return (
@@ -8,6 +9,7 @@ export function ConsoleLayout() {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />
+        <AlertBanner />
         <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
