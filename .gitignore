@@ -19,3 +19,4 @@ footage/
 data/
 models/*.bak
 storage/
+yolov8m.pt

@@ -73,9 +73,15 @@ def _get_model():
                 import os
                 from ultralytics import YOLO
                 # YOLO_MODEL picks the detector (see docs/yolo_benchmark.md).
-                # v8n is the CPU-tier default; set YOLO_MODEL=yolov8m.pt on
-                # GPU-tier nodes when the benchmark shows it real-time.
-                weights = os.environ.get("YOLO_MODEL", "yolov8n.pt")
+                # Measured: v8m GPU 29.3 FPS (real-time), v8m CPU 2.4 FPS —
+                # so GPU tier defaults to v8m, CPU tier to v8n.
+                weights = os.environ.get("YOLO_MODEL")
+                if not weights:
+                    try:
+                        import torch
+                        weights = "yolov8m.pt" if torch.cuda.is_available() else "yolov8n.pt"
+                    except Exception:
+                        weights = "yolov8n.pt"
                 logger.info(f"Loading {weights} for /detect endpoint...")
                 _model = YOLO(weights)
                 logger.info(f"{weights} loaded")
