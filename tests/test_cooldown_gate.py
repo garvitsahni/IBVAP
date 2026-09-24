@@ -54,6 +54,23 @@ def test_watchlist_key_is_time_only_cooldown(gate):
     assert gate.should_fire("cam1", "obj1", "watchlist_match", violating=True, now=1060.0) is True
 
 
+def test_violating_false_deactivates_and_refires(gate):
+    assert gate.should_fire("cam1", "obj1", "roi:Zone A", violating=True, now=1000.0) is True
+    assert gate.should_fire("cam1", "obj1", "roi:Zone A", violating=False, now=1000.5) is False
+    assert gate.should_fire("cam1", "obj1", "roi:Zone A", violating=True, now=1001.0) is True
+
+
+def test_reset_rearms(gate):
+    assert gate.should_fire("cam1", "obj1", "roi:Zone A", violating=True, now=1000.0) is True
+    gate.reset()
+    assert gate.should_fire("cam1", "obj1", "roi:Zone A", violating=True, now=1000.0) is True
+
+
+def test_time_going_backwards_does_not_fire(gate):
+    gate.should_fire("cam1", "obj1", "roi:Zone A", violating=True, now=1000.0)
+    assert gate.should_fire("cam1", "obj1", "roi:Zone A", violating=True, now=990.0) is False
+
+
 def test_singleton():
     a = get_cooldown_gate()
     b = get_cooldown_gate()

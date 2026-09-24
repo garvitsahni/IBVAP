@@ -9,6 +9,10 @@ use the pure 60s time cooldown.
 
 Module-level singleton: AlertPipeline is constructed per request, the
 gate must outlive it. Thread-safe (ingestion runs in the threadpool).
+
+In-memory limitation: `_state` entries persist for the process lifetime
+(no per-key eviction) — bounded by the number of unique
+(camera_id, object_id, reason_key) tuples; `reset()` clears everything.
 """
 import threading
 from typing import Dict, Set, Tuple
