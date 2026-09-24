@@ -101,10 +101,10 @@ class ReIDService:
         resized = cv2.resize(crop, (target_w, target_h))
         rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
         blob = rgb.astype(np.float32) / 255.0
+        blob = blob.transpose(2, 0, 1)  # HWC -> CHW (before mean/std: shapes (3,1,1))
         if is_vehicle:
             # ImageNet normalization for VeRi-776
             blob = (blob - IMAGENET_MEAN) / IMAGENET_STD
-        blob = blob.transpose(2, 0, 1)  # HWC -> CHW
         blob = np.expand_dims(blob, 0)  # Add batch dimension
         return blob
 

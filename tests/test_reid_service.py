@@ -83,3 +83,24 @@ def test_reid_service_vehicle_model():
     embedding = svc.extract_embedding(crop, is_vehicle=True)
     # With no vehicle model loaded, should return None
     assert embedding is None
+
+
+def test_vehicle_preprocess_and_real_inference():
+    """Regression: vehicle preprocess must transpose to CHW BEFORE ImageNet
+    mean/std normalization. An HWC/(3,1,1) broadcast error made every vehicle
+    embedding fail (caught by scripts/bench_link_rate.py). Loads the real
+    models/vehicle_reid.onnx."""
+    from edge.reid_service import ReIDService
+    svc = ReIDService(multiprocessing.Queue(), multiprocessing.Queue())
+    crop = np.random.randint(0, 255, (80, 200, 3), dtype=np.uint8)
+
+    blob = svc._preprocess_crop(crop, 256, 256, is_vehicle=True)
+    assert blob.shape == (1, 3, 256, 256)
+    assert blob.dtype == np.float32
+
+    svc._load_vehicle_model()
+    assert svc._vehicle_session is not None, "vehicle_reid.onnx failed to load"
+    emb = svc.extract_embedding(crop, is_vehicle=True)
+    assert emb is not None, "vehicle embedding failed (preprocess/inference)"
+    assert emb.shape == (512,)
+    assert abs(np.linalg.norm(emb) - 1.0) < 1e-3
