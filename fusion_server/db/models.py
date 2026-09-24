@@ -71,7 +71,7 @@ class Alert(Base):
     camera_id = Column(String(64), nullable=False)
     timestamp = Column(DateTime(timezone=True), nullable=False)
     reason = Column(String(256), nullable=False)  # Deterministic reason from rule engine
-    status = Column(String(16), nullable=False, default='fired')  # 'fired' | 'enriched' | 'acknowledged'
+    status = Column(String(16), nullable=False, default='fired')  # 'fired' | 'enriched' | 'acknowledged' | 'escalated' | 'false_positive'
     hash = Column(String(64), nullable=True)  # SHA-256 hex
     previous_hash = Column(String(64), nullable=True)  # NULL for first alert
     threat_score = Column(Float, nullable=False, default=0.0)
@@ -99,7 +99,7 @@ class Alert(Base):
         Index('idx_alerts_hash', 'hash'),
         Index('idx_alerts_prev_hash', 'previous_hash'),
         CheckConstraint('threat_score >= 0 AND threat_score <= 1', name='ck_alert_threat_score'),
-        CheckConstraint("status IN ('fired', 'enriched', 'acknowledged')", name='ck_alert_status'),
+        CheckConstraint("status IN ('fired', 'enriched', 'acknowledged', 'escalated', 'false_positive')", name='ck_alert_status'),
     )
 
 

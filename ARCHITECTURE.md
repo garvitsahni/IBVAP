@@ -120,7 +120,7 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
   "timestamp": "ISO8601",
   "reason": "string",
   "reason_detail": "string | null",
-  "status": "fired | enriched | acknowledged",
+  "status": "fired | enriched | acknowledged | escalated | false_positive",
   "threat_score": float,
   "clip_path": "string | null",
   "snapshot_path": "string | null",
@@ -137,6 +137,8 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
 ```
 
 > Contract addition (2026-09-23, FLAGGED TO ALL PHASE OWNERS): `Alert` gained three additive fields — `reason_detail` (deterministic plain-text explanation generated at fire time, never AI), `snapshot_path` (relative path to the event-triggered snapshot JPEG under `storage/alerts/`, set asynchronously after broadcast; NULL on failure), and `plate_text` (implemented since the ANPR work but previously missing from this contract). All are optional/nullable — no consumer breaks by ignoring them.
+
+> Contract addition (2026-09-23, FLAGGED TO ALL PHASE OWNERS): `Alert.status` gained `escalated` and `false_positive`. `false_positive` is terminal; all other statuses may transition among themselves via `POST /api/v1/alerts/{alert_id}/{acknowledge,escalate,false-positive}`. Existing SQLite databases are migrated automatically at startup (`init_db` rebuilds the `alerts` table — CHECK constraints cannot be ALTERed); a pre-migration backup is written to `ibvap.db.bak-status-migration`. PostgreSQL operators must run the commented `ALTER TABLE` block in `schema.sql`.
 
 ### ROI (fusion server, virtual fence configuration)
 ```json

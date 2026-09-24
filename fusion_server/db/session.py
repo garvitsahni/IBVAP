@@ -58,6 +58,58 @@ def get_db_session():
         db.close()
 
 
+def migrate_alert_status_check(conn, db_path: str) -> bool:
+    """SQLite CHECK constraints cannot be ALTERed — rebuild the alerts table
+    with an extended status enum. Returns True if a rebuild happened.
+    Preserves rows, PK ids (child FKs stay valid), and named indexes.
+    Idempotent: no-op when the CHECK already lists 'escalated'.
+    Backup is the CALLER's job (see init_db)."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='alerts'"
+    ).fetchone()
+    if row is None or row[0] is None:
+        return False
+    old_sql = row[0]
+    marker = "('fired', 'enriched', 'acknowledged')"
+    if marker not in old_sql:
+        return False  # already migrated (or created from the new model)
+    new_sql = old_sql.replace(
+        marker, "('fired', 'enriched', 'acknowledged', 'escalated', 'false_positive')"
+    )
+    index_sql = [
+        r[0] for r in conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' "
+            "AND tbl_name='alerts' AND sql IS NOT NULL"
+        ).fetchall()
+    ]
+    fk_was_off = conn.execute("PRAGMA foreign_keys").fetchone()[0] == 0
+    if not fk_was_off:
+        conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        conn.execute("BEGIN")
+        conn.execute(new_sql.replace("CREATE TABLE alerts", "CREATE TABLE alerts_new", 1))
+        conn.execute("INSERT INTO alerts_new SELECT * FROM alerts")
+        conn.execute("DROP TABLE alerts")
+        conn.execute("ALTER TABLE alerts_new RENAME TO alerts")
+        for sql in index_sql:
+            conn.execute(sql)
+        bad = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if bad:
+            conn.execute("ROLLBACK")
+            raise RuntimeError(f"foreign_key_check failed after rebuild: {bad[:5]}")
+        conn.execute("COMMIT")
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        if not fk_was_off:
+            conn.execute("PRAGMA foreign_keys=ON")
+    return True
+
+
 def init_db():
     """Initialize database tables. Called on startup."""
     from fusion_server.db.models import Base as ModelsBase
@@ -81,3 +133,25 @@ def init_db():
                 conn.execute(text(_ddl))
         except Exception:
             pass  # column already exists
+    if DATABASE_URL.startswith("sqlite"):
+        # "sqlite:///./ibvap.db" → "./ibvap.db" (works as-is with os.path.isfile)
+        db_path = DATABASE_URL.split("sqlite:///", 1)[1]
+        if db_path and db_path != ":memory:" and os.path.isfile(db_path):
+            bak = db_path + ".bak-status-migration"
+            if not os.path.isfile(bak):
+                try:
+                    import shutil
+                    shutil.copy2(db_path, bak)
+                except OSError:
+                    pass  # best-effort backup — never block startup
+            raw = engine.raw_connection()
+            try:
+                migrate_alert_status_check(raw, db_path=db_path)
+                raw.commit()
+            except Exception:
+                try:
+                    raw.rollback()
+                except Exception:
+                    pass
+            finally:
+                raw.close()

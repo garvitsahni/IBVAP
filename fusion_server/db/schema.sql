@@ -51,7 +51,7 @@ CREATE TABLE alerts (
     camera_id VARCHAR(64) NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
     reason VARCHAR(256) NOT NULL,  -- Deterministic reason from rule engine
-    status VARCHAR(16) NOT NULL DEFAULT 'fired' CHECK (status IN ('fired', 'enriched', 'acknowledged')),
+    status VARCHAR(16) NOT NULL DEFAULT 'fired' CHECK (status IN ('fired', 'enriched', 'acknowledged', 'escalated', 'false_positive')),
     threat_score DOUBLE PRECISION NOT NULL DEFAULT 0.0 CHECK (threat_score >= 0 AND threat_score <= 1),
     clip_path VARCHAR(512),  -- Path to clip in MinIO/local storage
     ai_explanation TEXT,  -- Async AI enrichment
@@ -72,6 +72,10 @@ FOREIGN KEY (alert_id) REFERENCES alerts(id);
 CREATE INDEX idx_alerts_object_time ON alerts (object_id, timestamp DESC);
 CREATE INDEX idx_alerts_status ON alerts (status);
 CREATE INDEX idx_alerts_alert_id ON alerts (alert_id);
+
+-- Migration for EXISTING PG databases (fresh installs get the CHECK above):
+-- ALTER TABLE alerts DROP CONSTRAINT IF EXISTS ck_alert_status;
+-- ALTER TABLE alerts ADD CONSTRAINT ck_alert_status CHECK (status IN ('fired', 'enriched', 'acknowledged', 'escalated', 'false_positive'));
 
 -- Table: watchlist
 -- Local encrypted watchlist for face/plate matching

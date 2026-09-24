@@ -59,6 +59,30 @@ class AlertResponse(BaseModel):
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
+_TERMINAL_STATUS = "false_positive"
+
+
+def _transition_status(db: Session, alert: Alert, new_status: str) -> None:
+    """fired|enriched|acknowledged|escalated → anything; false_positive terminal."""
+    if alert.status == _TERMINAL_STATUS:
+        raise HTTPException(status_code=400, detail="false_positive is terminal")
+    alert.status = new_status
+    db.commit()
+    db.refresh(alert)
+
+
+def _alert_response(alert: Alert) -> AlertResponse:
+    return AlertResponse(
+        id=alert.id, alert_id=alert.alert_id, object_id=alert.object_id,
+        camera_id=alert.camera_id, timestamp=alert.timestamp, reason=alert.reason,
+        status=alert.status, threat_score=alert.threat_score, clip_path=alert.clip_path,
+        ai_explanation=alert.ai_explanation, ai_source=getattr(alert, "ai_source", None),
+        trajectory_projection=alert.trajectory_projection, plate_text=alert.plate_text,
+        reason_detail=alert.reason_detail, snapshot_path=alert.snapshot_path,
+        footprint_entry_id=alert.footprint_entry_id, created_at=alert.created_at,
+        enriched_at=alert.enriched_at,
+    )
+
 
 @router.post("", response_model=AlertResponse, status_code=status.HTTP_201_CREATED)
 async def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
@@ -280,28 +304,25 @@ async def acknowledge_alert(alert_id: str, db: Session = Depends(get_db)):
     alert = db.query(Alert).filter(Alert.alert_id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
+    _transition_status(db, alert, "acknowledged")
+    return _alert_response(alert)
 
-    alert.status = "acknowledged"
-    db.commit()
-    db.refresh(alert)
 
-    return AlertResponse(
-        id=alert.id,
-        alert_id=alert.alert_id,
-        object_id=alert.object_id,
-        camera_id=alert.camera_id,
-        timestamp=alert.timestamp,
-        reason=alert.reason,
-        status=alert.status,
-        threat_score=alert.threat_score,
-        clip_path=alert.clip_path,
-        ai_explanation=alert.ai_explanation,
-        ai_source=getattr(alert, "ai_source", None),
-        trajectory_projection=alert.trajectory_projection,
-        plate_text=alert.plate_text,
-        reason_detail=alert.reason_detail,
-        snapshot_path=alert.snapshot_path,
-        footprint_entry_id=alert.footprint_entry_id,
-        created_at=alert.created_at,
-        enriched_at=alert.enriched_at,
-    )
+@router.post("/{alert_id}/escalate", response_model=AlertResponse)
+async def escalate_alert(alert_id: str, db: Session = Depends(get_db)):
+    """Escalate an alert (status only — threat_score is rule-engine owned)."""
+    alert = db.query(Alert).filter(Alert.alert_id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    _transition_status(db, alert, "escalated")
+    return _alert_response(alert)
+
+
+@router.post("/{alert_id}/false-positive", response_model=AlertResponse)
+async def false_positive_alert(alert_id: str, db: Session = Depends(get_db)):
+    """Mark an alert a false positive (terminal status — audit trail kept)."""
+    alert = db.query(Alert).filter(Alert.alert_id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    _transition_status(db, alert, "false_positive")
+    return _alert_response(alert)
