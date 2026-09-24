@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SSEClient } from "../../services/sse";
 
 export interface LiveDetection {
@@ -81,9 +81,16 @@ export function DetectionOverlay({ cameraId, detections: propDetections, videoWi
     };
 
     rescale();
+    // Re-check staleness every second so boxes whose capture timestamp aged
+    // past STALE_MS disappear even when no new detection response arrives
+    // (previously stale filtering only ran when props/size changed).
+    const staleTimer = setInterval(rescale, 1000);
     const ro = new ResizeObserver(rescale);
     ro.observe(root);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      clearInterval(staleTimer);
+    };
   }, [cameraId, propDetections, videoWidth, videoHeight]);
 
   // SSE mode
@@ -147,7 +154,7 @@ export function DetectionOverlay({ cameraId, detections: propDetections, videoWi
             >
               {isVehicle ? "Vehicle" : "Person"} {conf}%
             </div>
-            {isVehicle && det.plate_text && (
+            {det.plate_text && (
               <div
                 style={{
                   position: "absolute",

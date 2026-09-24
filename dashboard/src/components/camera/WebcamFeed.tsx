@@ -8,6 +8,7 @@ const CAPTURE_WIDTH = 640;
 export function WebcamFeed() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const inFlightRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [detections, setDetections] = useState<LiveDetection[]>([]);
@@ -42,6 +43,9 @@ export function WebcamFeed() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
+    // Single-flight: never queue detect requests — overlapping calls got 429s
+    // and delayed the NEXT successful response, leaving stale boxes on screen.
+    if (inFlightRef.current) return;
     if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -51,6 +55,10 @@ export function WebcamFeed() {
     canvas.height = Math.round(video.videoHeight * scale);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+    // Timestamp at CAPTURE time — the overlay's stale filter (3s) must age
+    // the frame itself, not the moment a slow response arrived.
+    const capturedAt = new Date().toISOString();
+    inFlightRef.current = true;
     try {
       const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
       const base64 = dataUrl.split(",")[1];
@@ -62,11 +70,13 @@ export function WebcamFeed() {
         object_type: d.class_name,
         bbox: d.bbox,
         confidence: d.confidence,
-        timestamp: new Date().toISOString(),
+        timestamp: capturedAt,
         plate_text: (d as any).plate_text || null,
       })));
     } catch {
-      // skip
+      // skip (429/network) — in-flight flag released below
+    } finally {
+      inFlightRef.current = false;
     }
   }, []);
 
