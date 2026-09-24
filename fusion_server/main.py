@@ -262,5 +262,12 @@ if os.path.isdir(patrol_build):
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # IPv4 wildcard (NOT "::": on this stack a "::" bind is v6-ONLY and kills
+    # 127.0.0.1 clients such as the vite proxy. "localhost" resolves ::1
+    # first — plain-urllib clients stall ~2s on it; use 127.0.0.1 literally
+    # or a Happy-Eyeballs client instead). Overridable via FUSION_SERVER_HOST.
+    host = os.environ.get("FUSION_SERVER_HOST", "0.0.0.0")
+    port = int(os.environ.get("FUSION_SERVER_PORT", "8000"))
+    uvicorn.run(app, host=host, port=port)
