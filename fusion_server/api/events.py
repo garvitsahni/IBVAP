@@ -183,9 +183,20 @@ def _ingest_event(event: "DetectionEventCreate", db: Session) -> dict:
     if final_match is not None:
         from fusion_server.services.cooldown_gate import get_cooldown_gate
         watchlist_object_id = object_id or f"unknown-{db_event.id}"
+        # Gate on a STABLE identity: face/plate-only matches have object_id
+        # None, and db_event.id is a fresh PK per event — keying on
+        # `unknown-{id}` would never dedup (one alert + ledger row per frame).
+        # All three match_* return sites always include reference_id; the
+        # fallback stays deterministic and per-event-unique-free.
+        watchlist_ref = final_match.get("reference_id")
+        gate_object_id = (
+            f"watchlist:{watchlist_ref}"
+            if watchlist_ref
+            else (object_id or "watchlist:unknown")
+        )
         if not get_cooldown_gate().should_fire(
             event.camera_id,
-            watchlist_object_id,
+            gate_object_id,
             "watchlist_match",
             violating=True,
             now=event.timestamp.timestamp(),

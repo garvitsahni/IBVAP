@@ -1,7 +1,11 @@
 """Cooldown wiring: AlertPipeline.process must dedup repeat violations
-(525-alert flood fix) while keeping violations reported, and re-arm on exit."""
+(525-alert flood fix) while keeping violations reported, and re-arm on exit.
+Also: face/plate-only watchlist matches (object_id=None) must dedup on the
+stable watchlist reference id, not a per-event-unique key."""
 from datetime import datetime
 from unittest.mock import MagicMock
+
+import numpy as np
 
 from fusion_server.services.alert_pipeline import AlertPipeline
 from fusion_server.services.cooldown_gate import get_cooldown_gate
@@ -82,3 +86,61 @@ def test_different_object_not_blocked():
     assert len(p.process(_event(0, 0, INSIDE))["alerts"]) == 1
     other = dict(_event(0, 10, INSIDE), object_id="obj2")
     assert len(p.process(other)["alerts"]) == 1
+
+
+def _one_hot(i: int, dim: int = 512):
+    v = np.zeros(dim, dtype=np.float32)
+    v[i] = 1.0
+    return v.tolist()
+
+
+def _post_face_event(client, track_id: str, timestamp: str, face):
+    return client.post("/api/v1/events", json={
+        "camera_id": "cam-wl-dedup",
+        "timestamp": timestamp,
+        "object_type": "person",
+        "track_id": track_id,
+        "bbox": {"x1": 0.1, "y1": 0.1, "x2": 0.2, "y2": 0.2},
+        "face_embedding": face,
+        "confidence": 0.9,
+    })
+
+
+def _watchlist_alerts(db_session):
+    from fusion_server.db.models import Alert
+    return db_session.query(Alert).filter(
+        Alert.reason == "watchlist_match",
+        Alert.camera_id == "cam-wl-dedup",
+    ).all()
+
+
+def test_face_only_watchlist_match_deduped_on_stable_reference(client, db_session):
+    """Face-only matches have object_id=None; the gate must key on the stable
+    watchlist reference_id. `unknown-{db_event.id}` is a fresh PK per event, so
+    keying on it never dedups — one alert + ledger row per frame (the flood)."""
+    face_a = _one_hot(0)
+    face_b = _one_hot(1)  # orthogonal to face_a — no cross-match above 0.65
+
+    for ref, face in (("wl-dedup-a", face_a), ("wl-dedup-b", face_b)):
+        r = client.post("/api/v1/watchlist", json={
+            "watchlist_type": "face",
+            "reference_id": ref,
+            "embedding": face,
+        })
+        assert r.status_code == 201, r.text
+
+    assert _post_face_event(client, "t-wl-1", "2026-09-24T12:00:00", face_a).status_code == 201
+    assert _post_face_event(client, "t-wl-2", "2026-09-24T12:00:10", face_a).status_code == 201
+
+    alerts = _watchlist_alerts(db_session)
+    assert len(alerts) == 1, (
+        "repeat face-only match within 60s must be deduped "
+        f"(gate key must be stable across events), got {len(alerts)}"
+    )
+
+    # A distinct watchlist reference must still fire inside the same window.
+    assert _post_face_event(client, "t-wl-3", "2026-09-24T12:00:20", face_b).status_code == 201
+    alerts = _watchlist_alerts(db_session)
+    assert len(alerts) == 2, (
+        f"distinct watchlist reference_id must produce its own alert, got {len(alerts)}"
+    )
