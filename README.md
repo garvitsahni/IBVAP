@@ -260,7 +260,7 @@ See [`.env.example`](.env.example) for the full list. Key variables:
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://ibvap:ibvap@localhost:5434/ibvap` | PostgreSQL connection string |
-| `YOLO_MODEL` | `yolov8n.pt` | YOLO model weights (n=nano, s=small) |
+| `YOLO_MODEL` | `yolov8m.pt` (CUDA) / `yolov8n.pt` (CPU) | YOLO model weights — m required on the webcam path for car recall (see .env) |
 | `CONF_THRESHOLD` | `0.3` | Detection confidence threshold |
 | `REID_THRESHOLD` | `0.75` | Re-ID matching threshold |
 | `FUSION_SERVER_PORT` | `8000` | Backend API port |

@@ -2,6 +2,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+# Load repo-root .env FIRST so documented config (YOLO_MODEL, DATABASE_URL,
+# camera URLs, ...) actually reaches os.environ. python-dotenv never overrides
+# already-exported variables, and .env's DATABASE_URL matches the code default.
+try:
+    import os as _os
+
+    from dotenv import load_dotenv as _load_dotenv
+
+    _load_dotenv(dotenv_path=_os.path.join(_os.path.dirname(_os.path.dirname(__file__)), ".env"))
+except ImportError:
+    pass  # dotenv optional — plain environment still works
+
 from fusion_server.db.session import init_db
 from fusion_server.api import events, alerts, footprint, watchlist
 from fusion_server.api.routes import cameras, streams, rois, plates, dashboard, ledger, clips, coverage, detect
