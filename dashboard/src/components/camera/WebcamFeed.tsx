@@ -109,6 +109,16 @@ export function WebcamFeed() {
         videoWidth={frameSize?.w}
         videoHeight={frameSize?.h}
       />
+      <div className="absolute bottom-2 left-2 right-2">
+        <div className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-text-muted bg-surface-2/80 backdrop-blur rounded border border-border/30">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4"/>
+            <path d="M12 8h.01"/>
+          </svg>
+          <span>Preview only — no alerts generated</span>
+        </div>
+      </div>
     </div>
   );
 }
