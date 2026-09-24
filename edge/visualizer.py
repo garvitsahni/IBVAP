@@ -94,8 +94,14 @@ class Visualizer:
         self._current_fps = 0.0
         self._window_name = f"{camera_id} — Track View"
 
-        # HTTP stream runs even in headless mode (--no-display only gates the cv2 window).
-        self._start_http_server()
+        # Do NOT start the HTTP server here: CameraWorker.__init__ runs in the
+        # parent process and multiprocessing.spawn must pickle this object —
+        # an HTTPServer holding an unpicklable handler closure breaks the fork.
+        # Call start() from run() (inside the child process) instead.
+
+    def start(self):
+        if self._http_server is None:
+            self._start_http_server()
 
     def _start_http_server(self):
         def handler(*args, **kwargs):

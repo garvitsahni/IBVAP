@@ -199,6 +199,8 @@ class CameraWorker:
     def run(self):
         logger.info(f"Camera worker {self.camera_id} starting ({self.camera_url})")
 
+        self.visualizer.start()
+
         if not self.ingestion.connect():
             logger.error(f"Camera {self.camera_id}: Cannot connect to {self.camera_url}")
             return
