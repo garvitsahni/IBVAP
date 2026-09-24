@@ -33,8 +33,23 @@ export function WebcamFeed() {
         video.srcObject = s;
         setStreaming(true);
       })
-      .catch(() => {
-        setError("Camera access denied or unavailable");
+      .catch((err: unknown) => {
+        const name =
+          (err as { name?: string } | null)?.name || "UnknownError";
+        const detail =
+          (err as { message?: string } | null)?.message || "";
+        // Surface the real error: the generic text hid whether this is a
+        // permission, busy-hardware, or missing-device failure.
+        console.error("[WebcamFeed] getUserMedia failed:", name, detail);
+        const hint =
+          name === "NotAllowedError"
+            ? " — allow camera for this site (lock icon) and in Windows Privacy settings"
+            : name === "NotReadableError" || name === "AbortError"
+              ? " — another app (Teams / Zoom / Camera app / other tab) is holding the camera; close it"
+              : name === "NotFoundError" || name === "OverconstrainedError"
+                ? " — no usable camera found; check Device Manager / Fn-key toggle"
+                : "";
+        setError(`Camera unavailable (${name})${hint}`);
       });
     return () => { if (stream) stream.getTracks().forEach((t) => t.stop()); };
   }, []);
