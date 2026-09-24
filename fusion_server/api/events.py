@@ -45,6 +45,7 @@ class DetectionEventCreate(BaseModel):
     face_embedding: Optional[List[float]] = None
     plate_text: Optional[str] = None
     confidence: float
+    snapshot: Optional[str] = None  # Optional base64 JPEG thumbnail (≤640px), edge→fusion only
 
 
 class DetectionEventResponse(BaseModel):
@@ -266,6 +267,31 @@ def _ingest_event(event: "DetectionEventCreate", db: Session) -> dict:
     }
 
 
+async def _persist_snapshot(alert_ids, snapshot_b64: str) -> None:
+    """Best-effort: write JPEG, then update alert rows in a fresh session."""
+    try:
+        from fusion_server.services.snapshot_store import save_alert_snapshots_async
+        from fusion_server.db.session import SessionLocal
+        from fusion_server.db.models import Alert
+        rel_path = await save_alert_snapshots_async(alert_ids, snapshot_b64)
+        if not rel_path:
+            return
+        def _update():
+            s = SessionLocal()
+            try:
+                for aid in alert_ids:
+                    row = s.query(Alert).filter(Alert.alert_id == aid).first()
+                    if row is not None:
+                        row.snapshot_path = rel_path
+                s.commit()
+            finally:
+                s.close()
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _update)
+    except Exception as exc:
+        logger.warning("snapshot persist failed: %s", exc)
+
+
 @router.post("", response_model=DetectionEventResponse, status_code=status.HTTP_201_CREATED)
 async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db)):
     """Receive detection event from edge node."""
@@ -321,6 +347,17 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
             }))
         except Exception:
             pass  # Never block alert delivery on broadcast failure
+
+    # Snapshot save: post-broadcast, best-effort (Rule 4). One frame per event;
+    # alert_ids = pipeline alerts first, then watchlist extra_alerts.
+    if event.snapshot:
+        try:
+            _snap_alert_ids = [a.alert_id for a in (pipeline_result or {}).get("alerts", [])]
+            _snap_alert_ids += [a.alert_id for a in (ingest.get("extra_alerts") or [])]
+            if _snap_alert_ids:
+                asyncio.ensure_future(_persist_snapshot(_snap_alert_ids, event.snapshot))
+        except Exception:
+            pass  # Never block alert delivery on snapshot failure
 
     # Broadcast detection to SSE subscribers (non-blocking)
     try:

@@ -229,6 +229,30 @@ async def alert_stream(request: Request):
     )
 
 
+@router.get("/{alert_id}/snapshot")
+async def get_alert_snapshot(alert_id: str, db: Session = Depends(get_db)):
+    """Serve the event-triggered snapshot JPEG (404 if none / unknown alert)."""
+    import os as _os
+    from fastapi.responses import FileResponse
+    alert = db.query(Alert).filter(Alert.alert_id == alert_id).first()
+    if not alert or not alert.snapshot_path:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    sp = alert.snapshot_path
+    if _os.path.isabs(sp):
+        # Trust absolute paths (written only by our own store / test fixtures).
+        abs_path = _os.path.abspath(sp)
+    else:
+        # Project-relative path we wrote ourselves — reject traversal escapes.
+        root = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "..", ".."))
+        abs_path = _os.path.abspath(_os.path.join(root, sp))
+        if not abs_path.startswith(root + _os.sep):
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+    if not _os.path.isfile(abs_path):
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    return FileResponse(abs_path, media_type="image/jpeg",
+                        filename=f"{alert_id}.jpg")
+
+
 @router.get("/{alert_id}", response_model=AlertResponse)
 async def get_alert(alert_id: str, db: Session = Depends(get_db)):
     """Get a specific alert by alert_id (UUID)."""
