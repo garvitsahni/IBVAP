@@ -14,9 +14,10 @@ const SEVERITIES: SeverityFilter[] = ['all', 'critical', 'high', 'medium', 'low'
 
 interface AlertsPageProps {
   initialSelectedId?: string | null;
+  onSelectedIdChange?: (id: string | null) => void;
 }
 
-export function AlertsPage({ initialSelectedId = null }: AlertsPageProps) {
+export function AlertsPage({ initialSelectedId = null, onSelectedIdChange }: AlertsPageProps) {
   const [alerts, setAlerts] = useState<FeedAlert[]>([]);
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(initialSelectedId);
   const [loading, setLoading] = useState(true);
@@ -37,15 +38,17 @@ export function AlertsPage({ initialSelectedId = null }: AlertsPageProps) {
       const mapped = mapApiAlert(data as unknown as ApiAlert);
       setAlerts((prev) => [mapped, ...prev]);
       setSelectedAlertId(mapped.id); // newest becomes selection
+      onSelectedIdChange?.(mapped.id);
     });
-  }, [on]);
+  }, [on, onSelectedIdChange]);
 
   // Newest auto-selected when none selected (initialSelectedId from nav may miss if list still loading)
   useEffect(() => {
     if (!selectedAlertId && alerts.length > 0) {
       setSelectedAlertId(alerts[0].id);
+      onSelectedIdChange?.(alerts[0].id);
     }
-  }, [alerts, selectedAlertId]);
+  }, [alerts, selectedAlertId, onSelectedIdChange]);
 
   const severityCounts = useMemo(() => {
     const counts: Record<string, number> = { all: alerts.length, critical: 0, high: 0, medium: 0, low: 0, info: 0 };
@@ -130,7 +133,10 @@ export function AlertsPage({ initialSelectedId = null }: AlertsPageProps) {
             <AlertFeed
               alerts={filtered}
               selectedId={selectedAlertId ?? undefined}
-              onSelect={(a) => setSelectedAlertId(a.id)}
+              onSelect={(a) => {
+                setSelectedAlertId(a.id);
+                onSelectedIdChange?.(a.id);
+              }}
             />
           </div>
           <div className="min-w-0">
