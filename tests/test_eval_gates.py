@@ -1,4 +1,4 @@
-"""Accuracy gates for IBVAP Re-ID models (Tasks 2-4).
+"""Accuracy gates for IBVAP Re-ID models (Tasks 2-5, all four models).
 
 - Fast smoke tests always run (determinism, real-model sanity).
 - Dataset gates run only when eval data is cached (data/eval/...); otherwise
@@ -118,3 +118,24 @@ def test_plate_precision_gate():
     assert res["n_images"] >= 100, "expected at least 100 eval images"
     assert res["precision"] >= GATE_PLATE_PRECISION, (
         f"precision {res['precision']:.3f} below gate {GATE_PLATE_PRECISION}")
+
+
+LFW_DIR = EVAL_DIR / "lfw_funneled"
+
+
+@pytest.mark.skipif(not LFW_DIR.exists(),
+                    reason="data/eval/lfw_funneled required for face gate "
+                           "(scripts/eval_accuracy.py --face-lfw fetches it)")
+def test_face_rank1_lfw_gate():
+    """Face Rank-1 >= 0.90 on LFW identities via the production detect ->
+    crop -> embed path (FaceDetectorService + FaceEmbeddingService)."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from eval_accuracy import eval_face_rank1, GATE_FACE_RANK1
+    res = eval_face_rank1(str(REPO_ROOT / "models" / "arcface_r100.onnx"),
+                          str(LFW_DIR), max_identities=200)
+    print(f"\nface Rank-1={res['rank1']:.3f} hits={res['hits']}/"
+          f"{res['n_identities']} det_failures={res['det_failures']}")
+    assert res["n_identities"] >= 200, "expected at least 200 identities"
+    assert res["rank1"] >= GATE_FACE_RANK1, (
+        f"Rank-1 {res['rank1']:.3f} below gate {GATE_FACE_RANK1}")

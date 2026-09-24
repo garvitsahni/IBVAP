@@ -237,7 +237,8 @@ MODEL_META = {
         "role": "face embedding",
         "source": "insightface buffalo_l model zoo (w600k/glint360k recognition ONNX)",
         "input": [1, 3, 112, 112],
-        "eval": "[NOT GATED] smoke verify only (no face-identity eval set bundled)",
+        "eval": "LFW Rank-1=0.950 (200 identities, production "
+                "detect->crop->embed path, gate >=0.90) @2026-09-24",
     },
 }
 
@@ -271,6 +272,43 @@ def write_manifest() -> int:
     return 0 if all_present else 1
 
 
+def download_yolov8m() -> bool:
+    """Fetch the YOLOv8m detector weights (GPU-tier /detect default).
+
+    Pinned to the ultralytics v8.3.0 release with the sha256 of the
+    canonical artifact; ultralytics auto-downloads the same file at runtime,
+    but downloading here keeps `download_models.py` a one-shot setup.
+    """
+    import hashlib
+    import urllib.request
+
+    dest = Path(__file__).parent.parent / "yolov8m.pt"
+    expected_sha = "5d4a90cdc7a21786cc59cd19778e9eafff836df9e2da32524737c7ee6efe4fe5"
+    if dest.exists():
+        sha = hashlib.sha256(dest.read_bytes()).hexdigest()
+        if sha == expected_sha:
+            print(f"  [SKIP] {dest.name} already exists ({dest.stat().st_size / 1e6:.1f} MB)")
+            return True
+        print(f"  [WARN] {dest.name} sha256 mismatch — re-downloading")
+        dest.unlink()
+    url = ("https://github.com/ultralytics/assets/releases/download/"
+           "v8.3.0/yolov8m.pt")
+    print(f"  [INFO] Downloading {dest.name} from ultralytics release ...")
+    try:
+        urllib.request.urlretrieve(url, dest)
+        sha = hashlib.sha256(dest.read_bytes()).hexdigest()
+        if sha != expected_sha:
+            dest.unlink(missing_ok=True)
+            print(f"  [FAIL] sha256 mismatch: {sha}")
+            return False
+        print(f"  [DONE] {dest.name} ({dest.stat().st_size / 1e6:.1f} MB)")
+        return True
+    except Exception as e:
+        print(f"  [FAIL] {e}")
+        dest.unlink(missing_ok=True)
+        return False
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="IBVAP model downloader / verifier")
@@ -292,17 +330,20 @@ def main():
     ensure_dir()
     results = {}
 
-    print("\n[1/4] OSNet AIN x1.0 (Person Re-ID)")
+    print("\n[1/5] OSNet AIN x1.0 (Person Re-ID)")
     results["osnet"] = export_osnet_to_onnx()
 
-    print("\n[2/4] ArcFace R100 (Face Embedding)")
+    print("\n[2/5] ArcFace R100 (Face Embedding)")
     results["arcface"] = export_arcface_to_onnx()
 
-    print("\n[3/4] Vehicle Re-ID (ResNet34-VeRi-776)")
+    print("\n[3/5] Vehicle Re-ID (ResNet34-VeRi-776)")
     results["vehicle_reid"] = export_vehicle_reid_to_onnx()
 
-    print("\n[4/4] Plate Detector (YOLOv11 license-plate)")
+    print("\n[4/5] Plate Detector (YOLOv11 license-plate)")
     results["plate_detector"] = export_plate_detector_to_onnx()
+
+    print("\n[5/5] YOLOv8m detector (GPU-tier /detect default)")
+    results["yolov8m"] = download_yolov8m()
 
     # Summary
     print("\n" + "=" * 60)

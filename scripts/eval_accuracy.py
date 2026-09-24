@@ -27,6 +27,122 @@ GATE_TEMPORAL = 0.70
 GATE_MARGIN = 0.15
 GATE_VEHICLE_RANK1 = 0.60
 GATE_PLATE_PRECISION = 0.85
+GATE_FACE_RANK1 = 0.90
+
+# LFW funneled archive (scikit-learn's citable mirror of the original
+# vis-www.cs.umass.edu dataset; sha256 verified before extract).
+LFW_URL = "https://ndownloader.figshare.com/files/5976015"
+LFW_SHA256 = "b47c8422c8cded889dc5a13418c4bc2abbda121092b3533a83306f90d900100a"
+
+
+def ensure_lfw(data_dir=None):
+    """Download + extract LFW funneled once into data/eval/lfw_funneled/."""
+    import hashlib
+    import tarfile
+    import urllib.request
+
+    root = Path(data_dir) if data_dir else REPO_ROOT / "data" / "eval"
+    images_dir = root / "lfw_funneled"
+    if images_dir.is_dir() and any(images_dir.iterdir()):
+        return images_dir
+    root.mkdir(parents=True, exist_ok=True)
+    tgz = root / "lfw-funneled.tgz"
+    if not tgz.exists():
+        print(f"  downloading LFW funneled from {LFW_URL} ...", flush=True)
+        urllib.request.urlretrieve(LFW_URL, tgz)
+    sha = hashlib.sha256(tgz.read_bytes()).hexdigest()
+    if sha != LFW_SHA256:
+        tgz.unlink(missing_ok=True)
+        raise RuntimeError(f"LFW archive sha256 mismatch: {sha}")
+    print("  extracting LFW ...", flush=True)
+    with tarfile.open(tgz, "r:gz") as tf:
+        tf.extractall(path=root)
+    tgz.unlink()
+    return images_dir
+
+
+def eval_face_rank1(model_path, lfw_dir, max_identities=200):
+    """Rank-1 identification on LFW identities with >=2 images.
+
+    Production-faithful path: FaceDetectorService.detect_faces (buffalo_l
+    det) picks the largest face in the image, its bbox is cropped exactly as
+    camera_worker does, and the crop is embedded through
+    FaceEmbeddingService ([-1,1] preprocess + unit-normalize). Images where
+    detection fails count as misses (production would produce no embedding).
+
+    Protocol: per sampled identity, image #1 is the gallery entry, image #2
+    is the query; distractors are every other sampled identity's gallery
+    image. Rank-1 = queries whose cosine argmax is the own identity.
+    """
+    import cv2
+    import numpy as np
+    from edge.face_detector import FaceDetectorService
+    from edge.face_embedding import FaceEmbeddingService
+
+    lfw_dir = Path(lfw_dir)
+    ids = []
+    for d in sorted(p for p in lfw_dir.iterdir() if p.is_dir()):
+        imgs = sorted(d.glob("*.jpg"))
+        if len(imgs) >= 2:
+            ids.append((d.name, imgs[0], imgs[1]))
+    if len(ids) < 2:
+        raise RuntimeError(f"not enough LFW identities with >=2 images in {lfw_dir}")
+    if max_identities and len(ids) > max_identities:
+        # deterministic even sample across the alphabet
+        step = len(ids) / max_identities
+        ids = [ids[int(i * step)] for i in range(max_identities)]
+
+    det = FaceDetectorService(None, None)
+    det._load_model()
+    assert det._app is not None, "face detector (insightface buffalo_l) failed to load"
+    emb_svc = FaceEmbeddingService(None, None, model_path=str(model_path))
+    emb_svc._load_model()
+    assert emb_svc._session is not None, f"failed to load {model_path}"
+
+    def embed_lfw(path):
+        img = cv2.imread(str(path))
+        if img is None:
+            raise RuntimeError(f"failed to read LFW image {path}")
+        faces = det.detect_faces(img)
+        if not faces:
+            return None  # production would emit no embedding
+        x1, y1, x2, y2 = max(faces, key=lambda f: (f["bbox"][2] - f["bbox"][0])
+                                                     * (f["bbox"][3] - f["bbox"][1]))["bbox"]
+        h, w = img.shape[:2]
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+        if x2 <= x1 or y2 <= y1:
+            return None
+        return emb_svc.extract_embedding(img[y1:y2, x1:x2])
+
+    galleries, queries = [], []
+    det_failures = 0
+    for _, gpath, qpath in ids:
+        g = embed_lfw(gpath)
+        q = embed_lfw(qpath)
+        det_failures += (g is None) + (q is None)
+        galleries.append(g)
+        queries.append(q)
+
+    dim = next(e.size for e in galleries + queries if e is not None)
+    G = np.stack([e if e is not None else np.zeros(dim) for e in galleries])
+    Q = np.stack([e if e is not None else np.zeros(dim) for e in queries])
+    sims = Q @ G.T
+    # no-embedding queries are misses; no-embedding galleries never win unless
+    # all sims <= 0 (zero vector) — argmax on zero rows is deterministic index 0,
+    # so mask those rows to -inf and count them as misses explicitly.
+    hits = 0
+    for qi in range(len(ids)):
+        if queries[qi] is None:
+            continue
+        masked = sims[qi].copy()
+        for gi, e in enumerate(galleries):
+            if e is None:
+                masked[gi] = -np.inf
+        if int(np.argmax(masked)) == qi and galleries[qi] is not None:
+            hits += 1
+    return {"rank1": hits / len(ids), "hits": hits, "n_identities": len(ids),
+            "det_failures": det_failures}
 
 
 def eval_plate_detector(model_path, plates_dir, max_images=None, iou_thr=0.5):
@@ -315,7 +431,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="IBVAP accuracy evaluation")
     parser.add_argument("--person-footage", action="store_true")
     parser.add_argument("--vehicle-veri", action="store_true")
+    parser.add_argument("--face-lfw", action="store_true")
     parser.add_argument("--model", default="models/osnet_ain_x1_0.onnx")
+    parser.add_argument("--lfw-dir", default="data/eval/lfw_funneled")
+    parser.add_argument("--max-identities", type=int, default=200)
     parser.add_argument("--frames", type=int, default=25)
     parser.add_argument("--videos", nargs="*", default=["footage/cam1.mp4",
                                                         "footage/cam2.mp4"])
@@ -339,6 +458,20 @@ def main() -> int:
         ok = res["rank1"] >= GATE_VEHICLE_RANK1
         print(f"  [Rank-1={res['rank1']:.3f} (gate>={GATE_VEHICLE_RANK1}, "
               f"queries={res['n_queries']}, gallery={res['n_gallery']}) "
+              f"[{'PASS' if ok else 'FAIL'}]")
+        return 0 if ok else 1
+    if args.face_lfw:
+        print(f"Evaluating {args.model} on LFW Rank-1...")
+        try:
+            lfw = ensure_lfw()
+            res = eval_face_rank1(str(REPO_ROOT / args.model), lfw,
+                                  max_identities=args.max_identities)
+        except Exception as e:
+            print(f"  [ERROR] eval failed: {e}")
+            return 1
+        ok = res["rank1"] >= GATE_FACE_RANK1
+        print(f"  Rank-1={res['rank1']:.3f} (gate>={GATE_FACE_RANK1}, "
+              f"hits={res['hits']}/{res['n_identities']}) "
               f"[{'PASS' if ok else 'FAIL'}]")
         return 0 if ok else 1
     if not args.person_footage:

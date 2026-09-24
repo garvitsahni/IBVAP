@@ -69,9 +69,9 @@
 | Person Re-ID (OSNet AIN) | `models/osnet_ain_x1_0.onnx` | torchreid pretrained (Market-1501) | footage temporal=0.780, margin=0.311 (gates ≥0.70/≥0.15) |
 | Vehicle Re-ID (ResNet34) | `models/vehicle_reid.onnx` | HF `dgwon/resnet-34-veri776-onnx` (VeRi-776-trained) | VeRi-776 Rank-1=0.865 @200 queries (gate ≥0.60) |
 | Plate detector (YOLOv11) | `models/plate_detector.onnx` | HF `morsetechlab/yolov11-license-plate-detection` | keremberke test split precision=0.999 @IoU 0.5 (gate ≥0.85) |
-| Face embedding (ArcFace) | `models/arcface_r100.onnx` | insightface buffalo_l zoo | [NOT GATED] smoke verify only |
+| Face embedding (ArcFace) | `models/arcface_r100.onnx` | insightface buffalo_l zoo | LFW Rank-1=0.950 @200 identities, production detect→crop→embed (gate ≥0.90) |
 
-Gates are enforced by `tests/test_eval_gates.py` (runs `scripts/eval_accuracy.py`); models are verified at startup with `scripts/download_models.py --verify` (GPU-primary, loud CPU fallback).
+Gates are enforced by `tests/test_eval_gates.py` (runs `scripts/eval_accuracy.py`); models are verified at startup with `scripts/download_models.py --verify` (GPU-primary, loud CPU fallback). Eval datasets live under `data/eval/` (LFW funneled sha256-verified from the figshare mirror).
 
 ### 3.2 BOP Fusion Server
 - **Re-ID matching engine:** cosine similarity search over a rolling embedding index; matches above threshold are linked into the same footprint chain.

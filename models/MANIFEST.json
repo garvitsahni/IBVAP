@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-09-24T04:23:31.033781+00:00",
+  "generated_utc": "2026-09-24T06:09:43.181873+00:00",
   "models": {
     "osnet_ain_x1_0.onnx": {
       "role": "person Re-ID embedding",
@@ -49,7 +49,7 @@
         112,
         112
       ],
-      "eval": "[NOT GATED] smoke verify only (no face-identity eval set bundled)",
+      "eval": "LFW Rank-1=0.950 (200 identities, production detect->crop->embed path, gate >=0.90) @2026-09-24",
       "bytes": 174383860,
       "sha256": "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43"
     }

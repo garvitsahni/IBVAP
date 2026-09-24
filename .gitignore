@@ -20,3 +20,4 @@ data/
 models/*.bak
 storage/
 yolov8m.pt
+dashboard/tsconfig.tsbuildinfo
