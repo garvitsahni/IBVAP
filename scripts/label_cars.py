@@ -23,8 +23,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>car/bike label
 <style>
 body{font-family:sans-serif;background:#111;color:#eee;margin:0;padding:12px}
 #bar{display:flex;gap:16px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
-#wrap{position:relative;display:inline-block;max-width:96vw}
-#img{max-width:96vw;max-height:78vh;display:block}
+#wrap{position:relative;display:inline-block;max-width:96vw;user-select:none;-webkit-user-select:none}
+#img{max-width:96vw;max-height:78vh;display:block;pointer-events:auto;-webkit-user-drag:none;user-select:none}
 #box{position:absolute;border:2px solid #0f0;pointer-events:none;display:none}
 #box.moto{border-color:#0ff}
 .hint{color:#aaa;font-size:13px}
@@ -34,7 +34,7 @@ b.k{background:#333;border:1px solid #666;border-radius:4px;padding:0 6px}
 <div id="bar"><span id="prog"></span><span>class: <span id="cls">car</span></span>
 <span class="hint">drag = box &nbsp; <b class="k">1</b> car &nbsp; <b class="k">2</b> bike &nbsp;
 <b class="k">Enter</b> save+next &nbsp; <b class="k">N</b> skip &nbsp; <b class="k">Z</b> undo</span></div>
-<div id="wrap"><img id="img"><div id="box"></div></div>
+<div id="wrap"><img id="img" draggable="false"><div id="box"></div></div>
 <script>
 let cur=null, boxes=[], cls=0, sx=0, sy=0, drawing=false, fname="";
 const img=document.getElementById('img'), boxEl=document.getElementById('box'),
@@ -46,7 +46,7 @@ async function load(){
   fname=q.next; boxes=[]; drawBox(null); img.src='/image?name='+encodeURIComponent(fname);
 }
 function pos(e){const r=img.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height];}
-img.onmousedown=e=>{drawing=true;[sx,sy]=pos(e);};
+img.onmousedown=e=>{e.preventDefault();drawing=true;[sx,sy]=pos(e);};
 img.onmousemove=e=>{if(!drawing)return;const [x,y]=pos(e);drawBox([sx,sy,x,y]);};
 img.onmouseup=e=>{drawing=false;const [x,y]=pos(e);
   boxes.push({cls,x1:Math.min(sx,x),y1:Math.min(sy,y),x2:Math.max(sx,x),y2:Math.max(sy,y)});drawBox(null);};
