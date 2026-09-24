@@ -6,11 +6,18 @@ export interface DetectionEvent {
   embedding: number[] | null; confidence: number; created_at: string;
 }
 
+export type AlertStatus = "fired" | "enriched" | "acknowledged" | "escalated" | "false_positive";
+export type ThreatLevel = "critical" | "high" | "medium" | "low" | "none";
+
 export interface Alert {
   id: number; alert_id: string; object_id: string; camera_id: string;
-  timestamp: string; reason: string; status: "fired" | "enriched" | "acknowledged";
-  threat_score: number; clip_path: string | null; ai_explanation: string | null;
+  timestamp: string; reason: string; status: AlertStatus;
+  threat_score: number; threat_level?: ThreatLevel | null;
+  clip_path: string | null; ai_explanation: string | null;
+  ai_source: string | null;
   trajectory_projection: Record<string, unknown> | null;
+  plate_text: string | null; reason_detail: string | null;
+  snapshot_path: string | null;
   footprint_entry_id: number | null; created_at: string; enriched_at: string | null;
 }
 
@@ -29,6 +36,25 @@ export interface FootprintChain {
 export interface Camera {
   camera_id: string; name: string; fov_polygon: number[][];
   status: string; last_seen: string; health: { ssim: number; metric: number };
+}
+
+export interface CameraHealthEntry {
+  status: string;
+  last_seen?: string;
+  last_updated?: string;
+  ssim?: number;
+  metric?: number;
+  reduced_accuracy_mode?: boolean;
+  detect_p95_ms?: number;
+}
+
+export interface SystemHealth {
+  status: string;
+  cameras: Record<string, string>;
+  coverage_gaps: unknown[];
+  detection_tier: string;
+  ledger: { status: string };
+  power_mode: string;
 }
 
 export interface DashboardStats {

@@ -8,9 +8,12 @@ export function useSSE(url: string) {
   useEffect(() => {
     const client = new SSEClient();
     clientRef.current = client;
+    client.onStateChange(setConnected);
     client.connect(url);
-    setConnected(true);
-    return () => { client.disconnect(); setConnected(false); };
+    return () => {
+      client.disconnect();
+      setConnected(false);
+    };
   }, [url]);
 
   const on = useCallback((event: string, handler: (data: Record<string, unknown>) => void) => {

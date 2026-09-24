@@ -1,4 +1,4 @@
-import type { Alert, FootprintChain, Camera, DashboardStats, LedgerStatus, BlindSpotResult } from "../types/api";
+import type { Alert, FootprintChain, Camera, CameraHealthEntry, SystemHealth, DashboardStats, LedgerStatus, BlindSpotResult } from "../types/api";
 
 const BASE = "/api/v1";
 
@@ -29,9 +29,11 @@ export const api = {
   getAlerts: (params?: string) => get<Alert[]>(`/alerts${params ? `?${params}` : ""}`),
   getAlert: (id: string) => get<Alert>(`/alerts/${id}`),
   acknowledgeAlert: (id: string) => post<Alert>(`/alerts/${id}/acknowledge`),
+  getSnapshotUrl: (alertId: string) => `${BASE}/alerts/${alertId}/snapshot`,
   getFootprint: (objectId: string) => get<FootprintChain>(`/footprint/${objectId}`),
   getCameras: () => get<Camera[]>("/cameras"),
-  getCameraHealth: () => get<Record<string, unknown>>("/cameras/health"),
+  getCameraHealth: () => get<Record<string, CameraHealthEntry>>("/cameras/health"),
+  getSystemHealth: () => get<SystemHealth>("/system/health"),
   getStats: () => get<DashboardStats>("/dashboard/stats"),
   getLedgerStatus: () => get<LedgerStatus>("/ledger/status"),
   getBlindSpots: () => get<Record<string, BlindSpotResult>>("/coverage/blind-spots"),
