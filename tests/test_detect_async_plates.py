@@ -85,3 +85,31 @@ async def test_plate_job_skips_when_busy(monkeypatch):
         await _plate_ocr_job(_frame(), [_vehicle()], "cam9")
     finally:
         detect_mod._ocr_busy.clear()
+
+
+async def test_plate_job_cooldown_per_camera(monkeypatch):
+    import time
+    calls = []
+    monkeypatch.setattr(detect_mod, "_read_plate",
+                        lambda *a, **k: calls.append(1) or "KA05MN6789")
+
+    class FakeBroadcaster:
+        async def broadcast_plate_read(self, event):
+            pass
+
+    import fusion_server.services.broadcaster as bc
+    monkeypatch.setattr(bc, "get_broadcaster", lambda: FakeBroadcaster())
+    detect_mod._ocr_busy.clear()
+    detect_mod._ocr_last_run.clear()
+    try:
+        await _plate_ocr_job(_frame(), [_vehicle()], "camC")
+        assert len(calls) == 1
+        # Immediate second job on the same camera is skipped by cooldown…
+        await _plate_ocr_job(_frame(), [_vehicle()], "camC")
+        assert len(calls) == 1
+        # …but a different camera still runs.
+        await _plate_ocr_job(_frame(), [_vehicle()], "camD")
+        assert len(calls) == 2
+    finally:
+        detect_mod._ocr_busy.clear()
+        detect_mod._ocr_last_run.clear()

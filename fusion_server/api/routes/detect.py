@@ -489,6 +489,13 @@ def _read_plates_for_dets(enhanced, dets: List[DetectionResult], camera_id: str)
 # arrive at 2Hz; without the guard jobs pile up unboundedly.
 _ocr_busy = __import__("threading").Event()
 
+# Per-camera OCR cooldown (seconds): a held-up car would otherwise retrigger
+# a multi-second CPU-pegging OCR job on nearly every frame. Plates barely
+# change frame-to-frame, so one attempt per camera per cooldown is plenty —
+# toasts still arrive, the box stays responsive.
+OCR_COOLDOWN_S = 10.0
+_ocr_last_run: dict = {}
+
 
 async def _plate_ocr_job(frame, dets: List[DetectionResult], camera_id: str) -> None:
     """Background plate OCR for dets already returned to the client.
@@ -499,6 +506,12 @@ async def _plate_ocr_job(frame, dets: List[DetectionResult], camera_id: str) -> 
     """
     if _ocr_busy.is_set():
         return
+    import time as _time3
+    now = _time3.monotonic()
+    last = _ocr_last_run.get(camera_id, 0.0)
+    if now - last < OCR_COOLDOWN_S:
+        return
+    _ocr_last_run[camera_id] = now
     _ocr_busy.set()
     try:
         # Top-2 vehicles only — bounds worst-case CPU time per job.
