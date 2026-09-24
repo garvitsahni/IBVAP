@@ -70,3 +70,14 @@ def init_db():
             conn.execute(text("ALTER TABLE alerts ADD COLUMN ai_source VARCHAR(16)"))
     except Exception:
         pass  # column already exists or DB unreachable at import time
+    # alerts.reason_detail / alerts.snapshot_path (additive 2026-09-23, idempotent).
+    for _ddl in (
+        "ALTER TABLE alerts ADD COLUMN reason_detail TEXT",
+        "ALTER TABLE alerts ADD COLUMN snapshot_path VARCHAR(512)",
+    ):
+        try:
+            from sqlalchemy import text
+            with engine.begin() as conn:
+                conn.execute(text(_ddl))
+        except Exception:
+            pass  # column already exists

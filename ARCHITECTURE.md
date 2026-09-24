@@ -119,19 +119,24 @@ No step in 3 or 4 may delay step 1 reaching the dashboard/patrol app.
   "camera_id": "string",
   "timestamp": "ISO8601",
   "reason": "string",
+  "reason_detail": "string | null",
   "status": "fired | enriched | acknowledged",
   "threat_score": float,
   "clip_path": "string | null",
+  "snapshot_path": "string | null",
   "ai_explanation": "string | null",
   "ai_source": "string | null",
   "trajectory_projection": [[x, y], ...] | null,
   "hash": "string",
   "previous_hash": "string | null",
   "footprint_entry_id": "int | null",
+  "plate_text": "string | null",
   "created_at": "ISO8601",
   "enriched_at": "ISO8601 | null"
 }
 ```
+
+> Contract addition (2026-09-23, FLAGGED TO ALL PHASE OWNERS): `Alert` gained three additive fields — `reason_detail` (deterministic plain-text explanation generated at fire time, never AI), `snapshot_path` (relative path to the event-triggered snapshot JPEG under `storage/alerts/`, set asynchronously after broadcast; NULL on failure), and `plate_text` (implemented since the ANPR work but previously missing from this contract). All are optional/nullable — no consumer breaks by ignoring them.
 
 ### ROI (fusion server, virtual fence configuration)
 ```json

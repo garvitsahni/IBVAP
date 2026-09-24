@@ -80,6 +80,8 @@ class Alert(Base):
     ai_source = Column(String(16), nullable=True)  # 'template' | 'llava-local' | 'ollama-local' | None
     trajectory_projection = Column(JSON, nullable=True)
     plate_text = Column(String(32), nullable=True)
+    reason_detail = Column(Text, nullable=True)  # Deterministic plain-text explanation (set at fire time)
+    snapshot_path = Column(String(512), nullable=True)  # Relative path under storage/alerts/ (set async post-broadcast)
     # use_alter: marks alerts<->footprint_entries FK cycle as known so DROP
     # order can be sorted (SQLite has no ALTER, so this FK constraint is
     # omitted there; PostgreSQL gets it from schema.sql's explicit ALTER).

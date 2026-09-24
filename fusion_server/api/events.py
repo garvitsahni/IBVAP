@@ -211,6 +211,10 @@ def _ingest_event(event: "DetectionEventCreate", db: Session) -> dict:
             is_watchlist_match=True,
         )
         score = calculate_threat_score([], threat_context)
+        reason_detail = (
+            f"{event.object_type} matched watchlist '{final_match['reference_id']}' "
+            f"(similarity {final_match['similarity']:.4f}) · score {score:.2f}"
+        )
         alert = Alert(
             alert_id=str(uuid.uuid4()),
             object_id=watchlist_object_id,
@@ -220,6 +224,7 @@ def _ingest_event(event: "DetectionEventCreate", db: Session) -> dict:
             status="fired",
             threat_score=score,
             plate_text=event.plate_text,
+            reason_detail=reason_detail,
             ai_explanation=f"Matched watchlist entry '{final_match['reference_id']}' with similarity {final_match['similarity']}",
         )
         db.add(alert)
@@ -310,6 +315,8 @@ async def create_event(event: DetectionEventCreate, db: Session = Depends(get_db
                 "threat_score": alert.threat_score,
                 "threat_level": get_threat_level(alert.threat_score),
                 "plate_text": alert.plate_text,
+                "reason_detail": alert.reason_detail,
+                "snapshot_path": alert.snapshot_path,
                 "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, "isoformat") else str(alert.timestamp),
             }))
         except Exception:

@@ -59,7 +59,9 @@ CREATE TABLE alerts (
     trajectory_projection JSONB,  -- Kalman filter projection
     footprint_entry_id BIGINT REFERENCES footprint_entries(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    enriched_at TIMESTAMPTZ
+    enriched_at TIMESTAMPTZ,
+    reason_detail TEXT,  -- Deterministic plain-text explanation (additive 2026-09-23)
+    snapshot_path VARCHAR(512)  -- Relative path under storage/alerts/ (additive 2026-09-23)
 );
 
 -- Add foreign key from footprint_entries to alerts (circular reference resolved)

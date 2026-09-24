@@ -133,6 +133,10 @@ class AlertPipeline:
                 )
                 score = calculate_threat_score([violation], threat_context)
 
+                verb = "entered" if violation.violation_type == "enter" else "exited"
+                reason_detail = (
+                    f'{object_type} {verb} ROI "{violation.roi_name}" · score {score:.2f}'
+                )
                 alert = Alert(
                     alert_id=str(uuid.uuid4()),
                     object_id=object_id,
@@ -141,6 +145,7 @@ class AlertPipeline:
                     reason="roi_intrusion",
                     status="fired",
                     threat_score=score,
+                    reason_detail=reason_detail,
                 )
                 self.db.add(alert)
                 self.db.flush()  # Persist before ledger reads previous hash
@@ -272,6 +277,8 @@ class AlertPipeline:
                         "threat_score": alert.threat_score,
                         "threat_level": get_threat_level(alert.threat_score),
                         "plate_text": alert.plate_text,
+                        "reason_detail": alert.reason_detail,
+                        "snapshot_path": alert.snapshot_path,
                         "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, "isoformat") else str(alert.timestamp),
                     }
                 try:
