@@ -82,6 +82,7 @@ def test_person_reid_footage_gate():
 
 
 VERI_DIR = EVAL_DIR / "veri-776" / "VeRi"
+PLATES_DIR = EVAL_DIR / "plates"
 
 
 @pytest.mark.skipif(not VERI_DIR.exists(),
@@ -98,3 +99,22 @@ def test_vehicle_reid_veri_gate():
     assert res["n_queries"] >= 200, "expected at least 200 queries"
     assert res["rank1"] >= GATE_VEHICLE_RANK1, (
         f"Rank-1 {res['rank1']:.3f} below gate {GATE_VEHICLE_RANK1}")
+
+
+@pytest.mark.skipif(not (PLATES_DIR / "_annotations.coco.json").exists(),
+                    reason="data/eval/plates/_annotations.coco.json required "
+                           "for plate precision gate (keremberke/"
+                           "license-plate-object-detection test split)")
+def test_plate_precision_gate():
+    """Plate precision >= 0.85 @ IoU 0.5 on keremberke plate test set,
+    running the production PlateDetectorService end-to-end."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from eval_accuracy import eval_plate_detector, GATE_PLATE_PRECISION
+    res = eval_plate_detector(str(REPO_ROOT / "models" / "plate_detector.onnx"),
+                              str(PLATES_DIR))
+    print(f"\nplate precision={res['precision']:.3f} "
+          f"(TP={res['tp']}/{res['n_preds']} preds, images={res['n_images']})")
+    assert res["n_images"] >= 100, "expected at least 100 eval images"
+    assert res["precision"] >= GATE_PLATE_PRECISION, (
+        f"precision {res['precision']:.3f} below gate {GATE_PLATE_PRECISION}")

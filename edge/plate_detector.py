@@ -30,11 +30,13 @@ class PlateDetectorService:
         res_queue: multiprocessing.Queue,
         model_path: str = "models/plate_detector.onnx",
         conf_threshold: float = 0.5,
+        nms_iou_threshold: float = 0.5,
     ):
         self.req_queue = req_queue
         self.res_queue = res_queue
         self.model_path = model_path
         self.conf_threshold = conf_threshold
+        self.nms_iou_threshold = nms_iou_threshold
         self._session = None
         self._input_name = None
 
@@ -61,41 +63,52 @@ class PlateDetectorService:
         blob = np.expand_dims(blob, 0)
         return blob
 
+    def _parse_and_postprocess(
+        self, output: np.ndarray, w_orig: int, h_orig: int
+    ) -> List[dict]:
+        """Parse YOLO raw output (1, 5, N) -> per-original-crop bbox dicts.
+
+        Rows are [cx, cy, w, h, class_score] in input-pixel units (320x320).
+        Applies score threshold + greedy NMS, then maps to original crop
+        dimensions (matches detect_plates' production contract).
+        """
+        import cv2
+        if output.ndim == 3:
+            output = output[0]
+        preds = output.T  # (N, 5): cx, cy, w, h, score
+        scores = preds[:, 4]
+        mask = scores >= self.conf_threshold
+        sel = preds[mask]
+        if sel.shape[0] == 0:
+            return []
+        boxes_xywh = np.stack(
+            [sel[:, 0] - sel[:, 2] / 2, sel[:, 1] - sel[:, 3] / 2,
+             sel[:, 2], sel[:, 3]], axis=1)
+        keep = cv2.dnn.NMSBoxes(
+            boxes_xywh.tolist(), scores[mask].astype(float).tolist(),
+            float(self.conf_threshold), float(self.nms_iou_threshold))
+        plates = []
+        sx, sy = w_orig / PLATE_INPUT_WIDTH, h_orig / PLATE_INPUT_HEIGHT
+        for i in (np.array(keep).flatten() if len(keep) else []):
+            x1 = max(0.0, boxes_xywh[i, 0] * sx)
+            y1 = max(0.0, boxes_xywh[i, 1] * sy)
+            x2 = min(float(w_orig), (boxes_xywh[i, 0] + boxes_xywh[i, 2]) * sx)
+            y2 = min(float(h_orig), (boxes_xywh[i, 1] + boxes_xywh[i, 3]) * sy)
+            plates.append({
+                "bbox": [int(x1), int(y1), int(x2), int(y2)],
+                "confidence": float(scores[mask][i]),
+            })
+        return plates
+
     def detect_plates(self, vehicle_crop: np.ndarray) -> List[dict]:
         if self._session is None:
             return []
 
         try:
-            import cv2
             blob = self._preprocess(vehicle_crop)
             outputs = self._session.run(None, {self._input_name: blob})
-
-            plates = []
-            output = outputs[0]
-            if output.ndim == 3:
-                output = output[0]
-
             h_orig, w_orig = vehicle_crop.shape[:2]
-
-            for detection in output:
-                if len(detection) >= 6:
-                    x1, y1, x2, y2 = detection[:4]
-                    conf = float(detection[4])
-                    if conf < self.conf_threshold:
-                        continue
-
-                    # Scale to original crop dimensions
-                    x1_scaled = max(0, x1 / PLATE_INPUT_WIDTH * w_orig)
-                    y1_scaled = max(0, y1 / PLATE_INPUT_HEIGHT * h_orig)
-                    x2_scaled = min(w_orig, x2 / PLATE_INPUT_WIDTH * w_orig)
-                    y2_scaled = min(h_orig, y2 / PLATE_INPUT_HEIGHT * h_orig)
-
-                    plates.append({
-                        "bbox": [int(x1_scaled), int(y1_scaled), int(x2_scaled), int(y2_scaled)],
-                        "confidence": conf,
-                    })
-
-            return plates
+            return self._parse_and_postprocess(outputs[0], w_orig, h_orig)
         except Exception as e:
             logger.error(f"Plate detection failed: {e}")
             return []

@@ -43,6 +43,41 @@ class TestPlateDetectorService:
         assert blob.min() >= 0.0
         assert blob.max() <= 1.0
 
+    def test_detect_plates_parses_yolo_raw_output(self):
+        """Service must parse YOLO raw [1,5,N] output (cx,cy,w,h,score in
+        input pixels) into original-crop bbox dicts — the production model
+        format (morsetechlab yolov11 ONNX)."""
+        from edge.plate_detector import PlateDetectorService
+        req = multiprocessing.Queue()
+        res = multiprocessing.Queue()
+        svc = PlateDetectorService(req, res, model_path="nonexistent_model.onnx")
+
+        # Synthetic raw output: two high-score boxes + one below threshold.
+        # Box A: center (160,160) size 80x40 in 320x320 input space.
+        # Box B overlaps A heavily (should be NMS-suppressed).
+        # Box C: score 0.3 < threshold 0.5.
+        n = 3
+        raw = np.zeros((1, 5, n), dtype=np.float32)
+        raw[0, :, 0] = [160, 160, 80, 40, 0.9]   # A
+        raw[0, :, 1] = [170, 160, 80, 40, 0.8]   # B (IoU~0.78 with A)
+        raw[0, :, 2] = [50, 50, 60, 30, 0.3]     # C (low score)
+
+        crop = np.zeros((300, 500, 3), dtype=np.uint8)  # h=300 w=500
+        plates = svc._parse_and_postprocess(raw, crop.shape[1], crop.shape[0])
+        assert len(plates) == 1, f"expected NMS to keep 1 box, got {len(plates)}"
+        p = plates[0]
+        x1, y1, x2, y2 = p["bbox"]
+        # A maps from input 320x320 to crop 500x300
+        exp_x1 = (160 - 40) / 320 * 500
+        exp_y1 = (160 - 20) / 320 * 300
+        exp_x2 = (160 + 40) / 320 * 500
+        exp_y2 = (160 + 20) / 320 * 300
+        assert abs(x1 - exp_x1) <= 2, (x1, exp_x1)
+        assert abs(y1 - exp_y1) <= 2, (y1, exp_y1)
+        assert abs(x2 - exp_x2) <= 2, (x2, exp_x2)
+        assert abs(y2 - exp_y2) <= 2, (y2, exp_y2)
+        assert abs(p["confidence"] - 0.9) < 1e-5
+
 
 class TestPlateOCRService:
     """Tests for PlateOCRService."""

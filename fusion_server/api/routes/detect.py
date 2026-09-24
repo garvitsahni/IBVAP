@@ -70,10 +70,15 @@ def _get_model():
     if _model is None:
         with _model_lock:
             if _model is None:
+                import os
                 from ultralytics import YOLO
-                logger.info("Loading YOLOv8s for /detect endpoint...")
-                _model = YOLO("yolov8s.pt")
-                logger.info("YOLOv8s loaded")
+                # YOLO_MODEL picks the detector (see docs/yolo_benchmark.md).
+                # v8n is the CPU-tier default; set YOLO_MODEL=yolov8m.pt on
+                # GPU-tier nodes when the benchmark shows it real-time.
+                weights = os.environ.get("YOLO_MODEL", "yolov8n.pt")
+                logger.info(f"Loading {weights} for /detect endpoint...")
+                _model = YOLO(weights)
+                logger.info(f"{weights} loaded")
     return _model
 
 
@@ -92,16 +97,44 @@ def _get_ocr():
     return _ocr_reader if _ocr_reader is not False else None
 
 
+_plate_detector = None
+_plate_detector_lock = __import__("threading").Lock()
+
+
+def _get_plate_detector():
+    global _plate_detector
+    if _plate_detector is None:
+        with _plate_detector_lock:
+            if _plate_detector is None:
+                try:
+                    import os
+                    if os.path.exists("models/plate_detector.onnx"):
+                        import multiprocessing
+                        from edge.plate_detector import PlateDetectorService
+                        q = multiprocessing.Queue()
+                        svc = PlateDetectorService(q, q, model_path="models/plate_detector.onnx")
+                        svc._load_model()
+                        if svc._session is not None:
+                            _plate_detector = svc
+                            logger.info("[PLATE DET] Loaded models/plate_detector.onnx for /detect")
+                        else:
+                            _plate_detector = False
+                    else:
+                        _plate_detector = False
+                except Exception as e:
+                    logger.warning(f"Plate detector model not available: {e}")
+                    _plate_detector = False
+    return _plate_detector if _plate_detector is not False else None
+
+
 def _get_brightness(frame) -> float:
     return float(frame.mean())
 
 
 def _apply_gamma(frame, gamma: float):
+    import cv2
     inv = 1.0 / gamma
     table = np.array([(i / 255.0) ** inv * 255 for i in range(256)]).astype("uint8")
-    return frame.__class__.__bases__[0].__mro__[0]  # placeholder, cv2 below
-    # Actually just use cv2
-    import cv2
     return cv2.LUT(frame, table)
 
 
@@ -126,7 +159,9 @@ def _run_yolo(
     plate_reads: list | None = None,
 ) -> List[DetectionResult]:
     model = _get_model()
-    results = model(frame, classes=list(TARGET_CLASSES), verbose=False, imgsz=1280)
+    # 640 matches the webcam upload width — 1280 upscaled x2 for no extra
+    # detail while quadrupling CPU time (measured 0.77s -> ~0.2s/pass).
+    results = model(frame, classes=list(TARGET_CLASSES), verbose=False, imgsz=640)
     dets = []
     for r in results:
         if r.boxes is None:
@@ -140,7 +175,9 @@ def _run_yolo(
                 continue
             x1, y1, x2, y2 = box.xyxy[0].tolist()
             plate_text = None
-            if cls_id in VEHICLE_CLASSES:
+            # OCR only when the caller wants plate results collected; multi-pass
+            # dark frames pass plate_reads=None and OCR runs once after dedup.
+            if plate_reads is not None and cls_id in VEHICLE_CLASSES:
                 plate_text = _read_plate(frame, x1, y1, x2, y2)
                 if plate_text:
                     logger.info(f"[PLATE READ] {CLASS_NAMES.get(cls_id)} -> '{plate_text}'")
@@ -163,9 +200,16 @@ def _run_yolo(
 
 
 def _read_plate(frame, x1, y1, x2, y2) -> str | None:
-    """Crop vehicle region, focus on lower-center (plate area), upscale, OCR."""
+    """Crop vehicle region, detect plate (or focus on lower-center), upscale, OCR.
+
+    Strategies run in order:
+    0. Exact plate detection via trained PlateDetectorService on vehicle crop
+    1. Lower-center strip (where plates typically are)
+    2. Bumper area
+    3. Full vehicle crop (fallback)
+    The FIRST candidate with >=4 plate-like chars wins.
+    """
     import cv2
-    import re
     ocr = _get_ocr()
     if ocr is None:
         return None
@@ -178,7 +222,25 @@ def _read_plate(frame, x1, y1, x2, y2) -> str | None:
         if vw < 20 or vh < 20:
             return None
 
-        candidates = []
+        vehicle_crop = frame[iy1:iy2, ix1:ix2]
+
+        # --- Strategy 0: Exact plate detection via trained plate detector ---
+        detector = _get_plate_detector()
+        if detector is not None and vehicle_crop.size > 0:
+            try:
+                plates = detector.detect_plates(vehicle_crop)
+                if plates:
+                    best_plate = max(plates, key=lambda p: (p["bbox"][2] - p["bbox"][0]) * (p["bbox"][3] - p["bbox"][1]))
+                    px1, py1, px2, py2 = best_plate["bbox"]
+                    p_crop = vehicle_crop[py1:py2, px1:px2]
+                    if p_crop.size > 0:
+                        candidates = _ocr_region(p_crop)
+                        if candidates:
+                            best = max(candidates, key=len)
+                            if len(best) >= 4:
+                                return best
+            except Exception as e:
+                logger.debug(f"Detector-assisted plate crop failed: {e}")
 
         # --- Strategy 1: Focus on lower-center strip (where plates are) ---
         plate_y1 = iy1 + int(vh * 0.55)
@@ -186,33 +248,61 @@ def _read_plate(frame, x1, y1, x2, y2) -> str | None:
         plate_x1 = ix1 + int(vw * 0.05)
         plate_x2 = ix2 - int(vw * 0.05)
         plate_crop = frame[plate_y1:plate_y2, plate_x1:plate_x2]
-        if plate_crop.size > 0:
-            candidates.extend(_ocr_region(plate_crop))
 
         # --- Strategy 2: Bottom quarter (very tight on bumper area) ---
         bump_y1 = iy1 + int(vh * 0.7)
         bump_y2 = iy2
         bump_crop = frame[bump_y1:bump_y2, ix1:ix2]
-        if bump_crop.size > 0:
-            candidates.extend(_ocr_region(bump_crop))
 
         # --- Strategy 3: Full vehicle crop (fallback) ---
-        full_crop = frame[iy1:iy2, ix1:ix2]
-        if full_crop.size > 0:
-            candidates.extend(_ocr_region(full_crop))
+        full_crop = vehicle_crop
 
-        if candidates:
-            # Prefer longer matches (more chars = more likely a plate)
-            return max(candidates, key=len)
+        fallback = None
+        for crop in (plate_crop, bump_crop, full_crop):
+            if crop is None or crop.size == 0:
+                continue
+            candidates = _ocr_region(crop)
+            if not candidates:
+                continue
+            best = max(candidates, key=len)
+            if len(best) >= 6:
+                return best
+            if fallback is None:
+                fallback = best
+        return fallback
     except Exception as e:
         logger.debug(f"Plate OCR failed: {e}")
     return None
 
 
-def _ocr_region(crop_img) -> list:
-    """Run OCR on a cropped region with multiple preprocessing passes. Returns list of plate-like strings."""
-    import cv2
+def _parse_ocr_results(results) -> list:
+    """Filter EasyOCR output down to plate-like candidates (existing rules)."""
     import re
+    candidates = []
+    if not results:
+        return candidates
+    # Combine all detections in reading order (left-to-right, top-to-bottom)
+    sorted_results = sorted(results, key=lambda r: (r[0][0][1], r[0][0][0]))
+    combined = "".join([re.sub(r'[^A-Z0-9]', '', r[1].upper()) for r in sorted_results])
+    if 4 <= len(combined) <= 16:
+        candidates.append(combined)
+    # Also check individual detections for short but valid plate fragments
+    for _, text, conf in results:
+        cleaned = re.sub(r'[^A-Z0-9]', '', text.upper())
+        if 4 <= len(cleaned) <= 12 and conf > 0.1:
+            candidates.append(cleaned)
+    return candidates
+
+
+def _ocr_region(crop_img) -> list:
+    """OCR a cropped region with capped upscale. Returns plate-like strings.
+
+    Budget: at most 2 readtext calls per region (enhanced pass, then Otsu
+    only if the first found nothing >=6 chars); readtext is restricted to the
+    plate allowlist. Width capped at ~1000px — 4x-upscaling full vehicle
+    crops produced 2700px images that took ~9s each to OCR.
+    """
+    import cv2
     ocr = _get_ocr()
     if ocr is None:
         return []
@@ -221,45 +311,23 @@ def _ocr_region(crop_img) -> list:
     if ch < 10 or cw < 30:
         return []
 
-    candidates = []
-
-    # Upscale 4x — plates need big text for OCR
-    scale = 4
+    # Upscale enough for OCR but never beyond ~1000px wide
+    scale = 4 if cw * 4 <= 1000 else max(2, 1000 // cw)
     upscaled = cv2.resize(crop_img, (cw * scale, ch * scale), interpolation=cv2.INTER_CUBIC)
 
-    # Sharpen
-    kernel = np.array([[0,-1,0],[-1,5,-1],[0,-1,0]], dtype=np.float32)
-    sharpened = cv2.filter2D(upscaled, -1, kernel)
+    gray = cv2.cvtColor(upscaled, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
 
-    for processed in [upscaled, sharpened]:
-        gray = cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY)
-
-        # CLAHE
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
-
-        # Otsu threshold
+    allow = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    try:
+        candidates = _parse_ocr_results(ocr.readtext(enhanced, allowlist=allow))
+        if any(len(c) >= 6 for c in candidates):
+            return candidates
         _, otsu = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-        for img in [enhanced, otsu]:
-            try:
-                results = ocr.readtext(img)
-            except Exception:
-                continue
-            if not results:
-                continue
-            # Combine all detections in reading order (left-to-right, top-to-bottom)
-            sorted_results = sorted(results, key=lambda r: (r[0][0][1], r[0][0][0]))
-            combined = "".join([re.sub(r'[^A-Z0-9]', '', r[1].upper()) for r in sorted_results])
-            if 4 <= len(combined) <= 16:
-                candidates.append(combined)
-
-            # Also check individual detections for short but valid plate fragments
-            for _, text, conf in results:
-                cleaned = re.sub(r'[^A-Z0-9]', '', text.upper())
-                if 4 <= len(cleaned) <= 12 and conf > 0.1:
-                    candidates.append(cleaned)
-
+        candidates.extend(_parse_ocr_results(ocr.readtext(otsu, allowlist=allow)))
+    except Exception as e:
+        logger.debug(f"OCR pass failed: {e}")
     return candidates
 
 
@@ -305,31 +373,88 @@ def _process_frame(frame, conf: float, camera_id: str) -> dict:
     passes = 0
 
     try:
+        # All YOLO passes are DETECTION-ONLY (plate_reads=None); plate OCR runs
+        # once after dedup below. Previously every dark pass re-ran full plate
+        # OCR per vehicle (4 passes x ~12 readtext calls => ~15min requests).
         # Pass 1: Always run on CLAHE-enhanced frame (works well for both light and dark)
         enhanced = _clahe(frame, clip=3.0, grid=8)
-        all_dets.extend(_run_yolo(enhanced, conf, camera_id=camera_id, plate_reads=plate_reads))
+        all_dets.extend(_run_yolo(enhanced, conf, camera_id=camera_id, plate_reads=None))
         passes += 1
 
         if dark:
             # Pass 2: CLAHE + denoise + gamma 2.0
             step2 = _denoise(_clahe(frame, clip=4.0, grid=8))
             step2 = cv2.LUT(step2, np.array([(i / 255.0) ** (1.0 / 2.0) * 255 for i in range(256)]).astype("uint8"))
-            all_dets.extend(_run_yolo(step2, conf, camera_id=camera_id, plate_reads=plate_reads))
+            all_dets.extend(_run_yolo(step2, conf, camera_id=camera_id, plate_reads=None))
             passes += 1
 
             # Pass 3: CLAHE + denoise + gamma 3.0
             step3 = _denoise(_clahe(frame, clip=5.0, grid=8))
             step3 = cv2.LUT(step3, np.array([(i / 255.0) ** (1.0 / 3.0) * 255 for i in range(256)]).astype("uint8"))
-            all_dets.extend(_run_yolo(step3, conf, camera_id=camera_id, plate_reads=plate_reads))
+            all_dets.extend(_run_yolo(step3, conf, camera_id=camera_id, plate_reads=None))
             passes += 1
 
             # Pass 4: CLAHE + denoise + gamma 4.0
             step4 = _denoise(_clahe(frame, clip=6.0, grid=8))
             step4 = cv2.LUT(step4, np.array([(i / 255.0) ** (1.0 / 4.0) * 255 for i in range(256)]).astype("uint8"))
-            all_dets.extend(_run_yolo(step4, conf, camera_id=camera_id, plate_reads=plate_reads))
+            all_dets.extend(_run_yolo(step4, conf, camera_id=camera_id, plate_reads=None))
             passes += 1
 
         dets = _dedup(all_dets)
+
+        # Plate OCR: once per unique vehicle, on the CLAHE-enhanced frame.
+        for det in dets:
+            if det.class_id not in VEHICLE_CLASSES:
+                continue
+            text = _read_plate(enhanced, det.bbox.x1, det.bbox.y1, det.bbox.x2, det.bbox.y2)
+            if text:
+                det.plate_text = text
+                plate_reads.append({
+                    "camera_id": camera_id,
+                    "plate_text": text,
+                    "class_name": det.class_name,
+                    "confidence": det.confidence,
+                })
+
+        # Standalone / held plate detection: if no vehicle has a plate (e.g. user showing
+        # a license plate, phone screen, or card directly to the webcam), run the plate
+        # detector on the enhanced frame.
+        if not any(d.plate_text for d in dets):
+            detector = _get_plate_detector()
+            if detector is not None:
+                try:
+                    frame_plates = detector.detect_plates(enhanced)
+                    for fp in frame_plates:
+                        fx1, fy1, fx2, fy2 = fp["bbox"]
+                        p_crop = enhanced[fy1:fy2, fx1:fx2]
+                        if p_crop.size > 0:
+                            candidates = _ocr_region(p_crop)
+                            if candidates:
+                                text = max(candidates, key=len)
+                                if len(text) >= 4:
+                                    attached = False
+                                    for d in dets:
+                                        if not (fx2 < d.bbox.x1 or fx1 > d.bbox.x2 or fy2 < d.bbox.y1 or fy1 > d.bbox.y2):
+                                            d.plate_text = text
+                                            attached = True
+                                            break
+                                    if not attached:
+                                        dets.append(DetectionResult(
+                                            bbox=BBoxResponse(x1=float(fx1), y1=float(fy1), x2=float(fx2), y2=float(fy2)),
+                                            confidence=round(float(fp["confidence"]), 3),
+                                            class_name="plate",
+                                            class_id=2,
+                                            plate_text=text,
+                                        ))
+                                    plate_reads.append({
+                                        "camera_id": camera_id,
+                                        "plate_text": text,
+                                        "class_name": "plate",
+                                        "confidence": round(float(fp["confidence"]), 3),
+                                    })
+                                    break
+                except Exception as e:
+                    logger.debug(f"Frame-level plate detection failed: {e}")
     except HTTPException:
         raise
     except Exception as e:

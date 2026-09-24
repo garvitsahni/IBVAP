@@ -26,6 +26,60 @@ sys.path.insert(0, str(REPO_ROOT))
 GATE_TEMPORAL = 0.70
 GATE_MARGIN = 0.15
 GATE_VEHICLE_RANK1 = 0.60
+GATE_PLATE_PRECISION = 0.85
+
+
+def eval_plate_detector(model_path, plates_dir, max_images=None, iou_thr=0.5):
+    """Precision @ IoU 0.5 for the production PlateDetectorService.
+
+    Runs edge.plate_detector.PlateDetectorService.detect_plates end-to-end
+    (same preprocess/parse/NMS/threshold as production) on the keremberke
+    license-plate test split (COCO bboxes in original image pixels).
+    Precision = matched predictions / total predictions (greedy 1-1).
+    """
+    import json
+    import cv2
+    import multiprocessing
+    from edge.plate_detector import PlateDetectorService
+
+    plates_dir = Path(plates_dir)
+    with open(plates_dir / "_annotations.coco.json", encoding="utf-8") as f:
+        coco = json.load(f)
+    gts: dict[int, list] = {}
+    for ann in coco["annotations"]:
+        x, y, w, h = ann["bbox"]
+        gts.setdefault(ann["image_id"], []).append(
+            [x, y, x + w, y + h])
+    images = coco["images"]
+    if max_images:
+        images = images[:max_images]
+
+    q = multiprocessing.Queue()
+    svc = PlateDetectorService(q, q, model_path=str(model_path))
+    svc._load_model()
+    assert svc._session is not None, f"failed to load {model_path}"
+
+    tp = 0
+    n_preds = 0
+    for info in images:
+        img = cv2.imread(str(plates_dir / info["file_name"]))
+        if img is None:
+            continue
+        preds = svc.detect_plates(img)
+        gt_boxes = gts.get(info["id"], [])
+        matched = set()
+        for p in preds:
+            n_preds += 1
+            for gi, g in enumerate(gt_boxes):
+                if gi in matched:
+                    continue
+                if iou(p["bbox"], g) >= iou_thr:
+                    tp += 1
+                    matched.add(gi)
+                    break
+    precision = tp / n_preds if n_preds else 0.0
+    return {"precision": precision, "tp": tp, "n_preds": n_preds,
+            "n_images": len(images)}
 
 
 def parse_veri_name(fname):

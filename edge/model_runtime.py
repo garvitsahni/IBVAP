@@ -19,6 +19,38 @@ try:
 except Exception:  # pragma: no cover - import guard
     ort = None  # type: ignore
 
+_dll_dirs_done = False
+
+
+def _ensure_windows_dll_dirs():
+    """Register pip-installed NVIDIA DLL dirs (nvidia-cudnn-cu12 etc.).
+
+    On Windows those DLLs live under site-packages/nvidia/*/lib, which is
+    not on the OS DLL search path — without this, CUDAExecutionProvider
+    fails to load cuDNN/cuBLAS and silently drops to CPU.
+    """
+    global _dll_dirs_done
+    if _dll_dirs_done or os.name != "nt":
+        return
+    _dll_dirs_done = True
+    try:
+        import site
+        roots = site.getsitepackages() + [site.getusersitepackages()]
+        import glob
+        for root in roots:
+            for pattern in ("nvidia/*/lib", "nvidia/*/bin"):
+                for libdir in glob.glob(os.path.join(root, pattern)):
+                    if not os.path.isdir(libdir):
+                        continue
+                    try:
+                        os.add_dll_directory(libdir)
+                    except OSError:
+                        pass
+                    if libdir not in os.environ.get("PATH", ""):
+                        os.environ["PATH"] = libdir + os.pathsep + os.environ.get("PATH", "")
+    except Exception as e:  # pragma: no cover - best effort
+        logger.debug(f"DLL dir registration skipped: {e}")
+
 
 def resolve_providers(prefer_gpu: bool = True) -> List[str]:
     """Return ONNX providers ordered by preference.
@@ -61,6 +93,7 @@ def create_session(model_path: str, prefer_gpu: bool = True):
         raise RuntimeError("onnxruntime is not installed; cannot load " + model_path)
     if not model_path or not os.path.isfile(model_path):
         raise RuntimeError(f"ONNX model file not found: {model_path}")
+    _ensure_windows_dll_dirs()
     providers = resolve_providers(prefer_gpu=prefer_gpu)
     try:
         session = ort.InferenceSession(model_path, providers=providers)

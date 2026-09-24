@@ -32,20 +32,35 @@ class ANPRPipeline:
         """Initialize models on first use (avoids import-time GPU load)."""
         if self._initialized:
             return
+        import os
+        onnx_path = self._plate_model_path if (self._plate_model_path and self._plate_model_path.endswith(".onnx")) else "models/plate_detector.onnx"
+        if os.path.exists(onnx_path) and onnx_path.endswith(".onnx"):
+            try:
+                import multiprocessing
+                from edge.plate_detector import PlateDetectorService
+                q = multiprocessing.Queue()
+                self._onnx_detector = PlateDetectorService(q, q, model_path=onnx_path)
+                self._onnx_detector._load_model()
+                if self._onnx_detector._session is not None:
+                    logger.info("ANPR ONNX plate detector loaded")
+            except Exception as e:
+                logger.warning(f"Failed to load ONNX plate detector: {e}")
+
         try:
             from ultralytics import YOLO
-            if self._plate_model_path:
+            if self._plate_model_path and not self._plate_model_path.endswith(".onnx"):
                 self._plate_model = YOLO(self._plate_model_path)
-            else:
+            elif not hasattr(self, "_onnx_detector") or self._onnx_detector is None or self._onnx_detector._session is None:
                 self._plate_model = YOLO("yolov8n.pt")  # Placeholder — real model trained on plates
-            logger.info("ANPR plate detection model loaded")
+            if self._plate_model:
+                logger.info("ANPR plate detection model loaded")
         except ImportError:
             logger.warning("ultralytics not installed — ANPR will use fallback detection")
 
         try:
             if self._ocr_type == "easyocr":
                 import easyocr
-                self._ocr_engine = easyocr.Reader(['en'])
+                self._ocr_engine = easyocr.Reader(['en'], gpu=False)
                 logger.info("EasyOCR engine loaded")
             elif self._ocr_type == "paddleocr":
                 from paddleocr import PaddleOCR
@@ -62,6 +77,25 @@ class ANPRPipeline:
         Returns PlateResult or None if no plate found.
         """
         self._lazy_init()
+
+        if hasattr(self, "_onnx_detector") and self._onnx_detector is not None and self._onnx_detector._session is not None:
+            try:
+                plates = self._onnx_detector.detect_plates(frame)
+                h, w = frame.shape[:2]
+                for p in plates:
+                    x1, y1, x2, y2 = p["bbox"]
+                    plate_crop = frame[max(0, y1):min(h, y2), max(0, x1):min(w, x2)]
+                    if plate_crop.size == 0:
+                        continue
+                    plate_text = self._ocr_plate(plate_crop)
+                    if plate_text:
+                        return PlateResult(
+                            plate_text=plate_text,
+                            confidence=p["confidence"],
+                            bbox=[float(x1)/w, float(y1)/h, float(x2-x1)/w, float(y2-y1)/h],
+                        )
+            except Exception as e:
+                logger.warning(f"ANPR ONNX detection failed: {e}")
 
         if self._plate_model is None:
             return None
