@@ -10,7 +10,7 @@ import { ToastStack } from '@/components/alert/ToastStack';
 import { SSEClient } from '@/services/sse';
 import { api } from '@/services/api';
 import type { Alert as ApiAlert, Camera as ApiCamera } from '@/types/api';
-import { mapApiAlert, type FeedAlert } from '@/lib/alerts';
+import { mapApiAlert, labelForReason, type FeedAlert } from '@/lib/alerts';
 
 interface DashboardCamera {
   id: string;
@@ -71,7 +71,7 @@ export function DashboardPage() {
       setAlerts((prev) =>
         prev.map((a) =>
           a.id === enriched.alert_id
-            ? { ...a, type: enriched.reason || a.type }
+            ? { ...a, type: enriched.reason ? labelForReason(enriched.reason) : a.type }
             : a
         )
       );

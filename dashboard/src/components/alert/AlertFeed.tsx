@@ -1,21 +1,12 @@
 import { AlertItem } from "./AlertItem"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { Inbox } from "lucide-react"
-
-interface Alert {
-  id: string
-  type: string
-  severity: "critical" | "high" | "medium" | "low" | "info"
-  cameraId: string
-  timestamp: string
-  status: string
-  plateText?: string | null
-}
+import type { FeedAlert } from "@/lib/alerts"
 
 interface AlertFeedProps {
-  alerts: Alert[]
+  alerts: FeedAlert[]
   selectedId?: string
-  onSelect?: (alert: Alert) => void
+  onSelect?: (alert: FeedAlert) => void
 }
 
 export function AlertFeed({ alerts, selectedId, onSelect }: AlertFeedProps) {

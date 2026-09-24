@@ -6,6 +6,7 @@ import StatsPanel from '@/components/event/StatsPanel';
 import { AlertDetailPanel } from '@/components/alert/AlertDetailPanel';
 import { api } from '@/services/api';
 import type { DetectionEvent } from '@/types/api';
+import type { FeedAlert } from '@/lib/alerts';
 
 interface HistoryEvent {
   id: string;
@@ -121,7 +122,7 @@ export function EventHistoryPage() {
       </div>
 
       <AlertDetailPanel
-        alert={selectedEvent as unknown as { id: string; type: string; severity: 'critical' | 'high' | 'medium' | 'low' | 'info'; cameraId: string; timestamp: string; status: string } | null}
+        alert={selectedEvent as unknown as FeedAlert | null}
         onClose={() => setSelectedEventId(null)}
       />
     </motion.div>

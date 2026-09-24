@@ -1,19 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion"
 import { X, MapPin, Clock, AlertTriangle, Camera, Hash } from "lucide-react"
 import { StatusBadge } from "@/components/ui/StatusBadge"
-
-interface Alert {
-  id: string
-  type: string
-  severity: "critical" | "high" | "medium" | "low" | "info"
-  cameraId: string
-  timestamp: string
-  status: string
-  plateText?: string | null
-}
+import type { FeedAlert } from "@/lib/alerts"
 
 interface AlertDetailPanelProps {
-  alert: Alert | null
+  alert: FeedAlert | null
   onClose: () => void
   onAcknowledge?: (id: string) => void
   onEscalate?: (id: string) => void
