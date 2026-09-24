@@ -94,8 +94,8 @@ class Visualizer:
         self._current_fps = 0.0
         self._window_name = f"{camera_id} — Track View"
 
-        if enabled:
-            self._start_http_server()
+        # HTTP stream runs even in headless mode (--no-display only gates the cv2 window).
+        self._start_http_server()
 
     def _start_http_server(self):
         def handler(*args, **kwargs):
