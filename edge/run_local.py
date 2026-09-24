@@ -23,6 +23,13 @@ LOCAL_FOOTAGE = {
 def parse_args():
     parser = argparse.ArgumentParser(description="IBVAP Edge Pipeline — Local Footage")
     parser.add_argument("--cameras", default="cam1", help="Comma-separated camera IDs")
+    parser.add_argument(
+        "--source",
+        action="append",
+        default=[],
+        metavar="CAMERA_ID:SRC",
+        help="Override source for a camera, e.g. laptop-webcam:0 (webcam device index) or cam1:rtsp://...; repeatable. Default: footage/<camera_id>.mp4",
+    )
     parser.add_argument("--fusion-server", default="http://127.0.0.1:8000", help="Fusion server URL")
     parser.add_argument("--target-fps", type=int, default=10, help="Target FPS per camera")
     parser.add_argument("--no-display", action="store_true", help="Disable cv2 display")
@@ -93,9 +100,15 @@ def main():
     time.sleep(3)
 
     from edge.camera_worker import CameraWorker
+    source_overrides = {}
+    for pair in args.source:
+        if ":" not in pair:
+            raise SystemExit(f"--source expects CAMERA_ID:SRC, got: {pair!r}")
+        cam_id, src = pair.split(":", 1)
+        source_overrides[cam_id.strip()] = src.strip()
     workers = []
     for i, cam_id in enumerate(camera_ids):
-        url = LOCAL_FOOTAGE.get(cam_id, f"footage/{cam_id}.mp4")
+        url = source_overrides.get(cam_id) or LOCAL_FOOTAGE.get(cam_id, f"footage/{cam_id}.mp4")
         port = 8081 + i
 
         worker = CameraWorker(

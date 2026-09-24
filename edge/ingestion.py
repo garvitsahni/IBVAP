@@ -20,9 +20,11 @@ class RTSPIngestion:
         self._cap: Optional[cv2.VideoCapture] = None
 
     def connect(self) -> bool:
+        # A URL of all digits (e.g. "0") is a webcam device index, not a filename.
+        source = int(self.url) if str(self.url).isdigit() else self.url
         for attempt in range(self.max_retries):
             try:
-                self._cap = cv2.VideoCapture(self.url)
+                self._cap = cv2.VideoCapture(source)
                 if self._cap.isOpened():
                     logger.info(f"Connected to {self.url}")
                     return True
