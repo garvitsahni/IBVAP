@@ -417,51 +417,16 @@ def _dedup(dets: List[DetectionResult], iou_thresh=0.4) -> List[DetectionResult]
     return keep
 
 
-def _process_frame(frame, conf: float, camera_id: str) -> dict:
-    """
-    Multi-pass low-light YOLO detection + plate OCR.
-    SYNC — must only ever run inside run_in_threadpool, never on the event loop.
-    """
-    import cv2
+def _read_plates_for_dets(enhanced, dets: List[DetectionResult], camera_id: str) -> dict:
+    """Plate OCR for already-deduped dets on the enhanced frame.
 
-    h, w = frame.shape[:2]
-    brightness = _get_brightness(frame)
-    dark = brightness < 80
-
-    all_dets: List[DetectionResult] = []
+    SYNC/blocking (EasyOCR on CPU costs seconds) — call from a worker thread
+    (via _process_frame run_plates=True) or from _plate_ocr_job, never on the
+    event loop. Returns {"detections": dets (mutated + maybe appended),
+    "plate_reads": [...]}. Never raises.
+    """
     plate_reads: list = []
-    passes = 0
-
     try:
-        # All YOLO passes are DETECTION-ONLY (plate_reads=None); plate OCR runs
-        # once after dedup below. Previously every dark pass re-ran full plate
-        # OCR per vehicle (4 passes x ~12 readtext calls => ~15min requests).
-        # Pass 1: Always run on CLAHE-enhanced frame (works well for both light and dark)
-        enhanced = _clahe(frame, clip=3.0, grid=8)
-        all_dets.extend(_run_yolo(enhanced, conf, camera_id=camera_id, plate_reads=None))
-        passes += 1
-
-        if dark:
-            # Pass 2: CLAHE + denoise + gamma 2.0
-            step2 = _denoise(_clahe(frame, clip=4.0, grid=8))
-            step2 = cv2.LUT(step2, np.array([(i / 255.0) ** (1.0 / 2.0) * 255 for i in range(256)]).astype("uint8"))
-            all_dets.extend(_run_yolo(step2, conf, camera_id=camera_id, plate_reads=None))
-            passes += 1
-
-            # Pass 3: CLAHE + denoise + gamma 3.0
-            step3 = _denoise(_clahe(frame, clip=5.0, grid=8))
-            step3 = cv2.LUT(step3, np.array([(i / 255.0) ** (1.0 / 3.0) * 255 for i in range(256)]).astype("uint8"))
-            all_dets.extend(_run_yolo(step3, conf, camera_id=camera_id, plate_reads=None))
-            passes += 1
-
-            # Pass 4: CLAHE + denoise + gamma 4.0
-            step4 = _denoise(_clahe(frame, clip=6.0, grid=8))
-            step4 = cv2.LUT(step4, np.array([(i / 255.0) ** (1.0 / 4.0) * 255 for i in range(256)]).astype("uint8"))
-            all_dets.extend(_run_yolo(step4, conf, camera_id=camera_id, plate_reads=None))
-            passes += 1
-
-        dets = _dedup(all_dets)
-
         # Plate OCR: once per unique vehicle, on the CLAHE-enhanced frame.
         for det in dets:
             if det.class_id not in VEHICLE_CLASSES:
@@ -515,6 +480,115 @@ def _process_frame(frame, conf: float, camera_id: str) -> dict:
                                     break
                 except Exception as e:
                     logger.debug(f"Frame-level plate detection failed: {e}")
+    except Exception as e:
+        logger.debug(f"Plate OCR block failed (non-fatal): {e}")
+    return {"detections": dets, "plate_reads": plate_reads}
+
+
+# Only one background plate-OCR job at a time — OCR on CPU is slow and frames
+# arrive at 2Hz; without the guard jobs pile up unboundedly.
+_ocr_busy = __import__("threading").Event()
+
+
+async def _plate_ocr_job(frame, dets: List[DetectionResult], camera_id: str) -> None:
+    """Background plate OCR for dets already returned to the client.
+
+    Boxes render instantly from the HTTP response; plate texts arrive seconds
+    later via plate_read SSE (Rule 4: enrichment never blocks delivery).
+    Best-effort: skips when a previous job is still running, never raises.
+    """
+    if _ocr_busy.is_set():
+        return
+    _ocr_busy.set()
+    try:
+        # Top-2 vehicles only — bounds worst-case CPU time per job.
+        vehicles = sorted(
+            (d for d in dets if d.class_id in VEHICLE_CLASSES),
+            key=lambda d: d.confidence, reverse=True,
+        )[:2]
+        if not vehicles:
+            return
+        enhanced = await run_in_threadpool(_clahe, frame)
+        from fusion_server.services.broadcaster import get_broadcaster
+        for det in vehicles:
+            try:
+                text = await run_in_threadpool(
+                    _read_plate, enhanced,
+                    det.bbox.x1, det.bbox.y1, det.bbox.x2, det.bbox.y2)
+            except Exception as e:
+                logger.debug(f"Background plate read failed (non-fatal): {e}")
+                continue
+            if text:
+                try:
+                    await get_broadcaster().broadcast_plate_read({
+                        "camera_id": camera_id,
+                        "plate_text": text,
+                        "class_name": det.class_name,
+                        "confidence": det.confidence,
+                    })
+                except Exception:
+                    pass  # Never fail on broadcast
+    finally:
+        _ocr_busy.clear()
+
+
+def _process_frame(frame, conf: float, camera_id: str, run_plates: bool = True) -> dict:
+    """
+    Multi-pass low-light YOLO detection (+ plate OCR unless run_plates=False).
+    SYNC — must only ever run inside run_in_threadpool, never on the event loop.
+
+    run_plates=False gives the fast path: YOLO boxes only, no OCR. Plate work
+    (EasyOCR on CPU costs seconds per vehicle — responses arrived past the
+    overlay's 3s stale filter, so car boxes NEVER rendered) runs in
+    _plate_ocr_job as a background task and reports via plate_read SSE.
+    """
+    import cv2
+
+    h, w = frame.shape[:2]
+    brightness = _get_brightness(frame)
+    dark = brightness < 80
+
+    all_dets: List[DetectionResult] = []
+    plate_reads: list = []
+    passes = 0
+
+    try:
+        # All YOLO passes are DETECTION-ONLY (plate_reads=None); plate OCR runs
+        # once after dedup below. Previously every dark pass re-ran full plate
+        # OCR per vehicle (4 passes x ~12 readtext calls => ~15min requests).
+        # Pass 1: Always run on CLAHE-enhanced frame (works well for both light and dark)
+        enhanced = _clahe(frame, clip=3.0, grid=8)
+        all_dets.extend(_run_yolo(enhanced, conf, camera_id=camera_id, plate_reads=None))
+        passes += 1
+
+        if dark:
+            # Pass 2: CLAHE + denoise + gamma 2.0
+            step2 = _denoise(_clahe(frame, clip=4.0, grid=8))
+            step2 = cv2.LUT(step2, np.array([(i / 255.0) ** (1.0 / 2.0) * 255 for i in range(256)]).astype("uint8"))
+            all_dets.extend(_run_yolo(step2, conf, camera_id=camera_id, plate_reads=None))
+            passes += 1
+
+            # Pass 3: CLAHE + denoise + gamma 3.0
+            step3 = _denoise(_clahe(frame, clip=5.0, grid=8))
+            step3 = cv2.LUT(step3, np.array([(i / 255.0) ** (1.0 / 3.0) * 255 for i in range(256)]).astype("uint8"))
+            all_dets.extend(_run_yolo(step3, conf, camera_id=camera_id, plate_reads=None))
+            passes += 1
+
+            # Pass 4: CLAHE + denoise + gamma 4.0
+            step4 = _denoise(_clahe(frame, clip=6.0, grid=8))
+            step4 = cv2.LUT(step4, np.array([(i / 255.0) ** (1.0 / 4.0) * 255 for i in range(256)]).astype("uint8"))
+            all_dets.extend(_run_yolo(step4, conf, camera_id=camera_id, plate_reads=None))
+            passes += 1
+
+        dets = _dedup(all_dets)
+
+        # Plate OCR (slow on CPU) — synchronous only when the caller asked for
+        # it (offline scripts/tests). The live endpoint passes run_plates=False
+        # and gets plates via _plate_ocr_job + SSE instead (see below).
+        if run_plates:
+            plates_result = _read_plates_for_dets(enhanced, dets, camera_id)
+            dets = plates_result["detections"]
+            plate_reads = plates_result["plate_reads"]
 
         # Debug capture for car-miss diagnosis: raw probe at conf 0.01 on the
         # same enhanced frame, plus final post-dedup dets. Flag-gated, capped,
@@ -569,17 +643,18 @@ async def detect_objects(req: DetectRequest):
     if not _detect_sem.acquire(blocking=False):
         raise HTTPException(status_code=429, detail="Detection busy — retry next frame")
     try:
-        result = await run_in_threadpool(_process_frame, frame, req.conf_threshold, req.camera_id)
+        # Fast path: YOLO boxes only (no OCR) so the response beats the
+        # overlay's 3s stale filter. Plates follow via _plate_ocr_job + SSE.
+        result = await run_in_threadpool(_process_frame, frame, req.conf_threshold, req.camera_id, False)
     finally:
         _detect_sem.release()
 
-    # Plate-read SSE broadcasts must be scheduled on the event loop (never from the worker thread)
-    for plate_event in result["plate_reads"]:
-        try:
-            from fusion_server.services.broadcaster import get_broadcaster
-            asyncio.ensure_future(get_broadcaster().broadcast_plate_read(plate_event))
-        except Exception:
-            pass  # Never block detection on broadcast failure
+    # Background plate OCR on the event loop (never from a worker thread, and
+    # never blocking the response above). Skips itself when busy.
+    try:
+        asyncio.ensure_future(_plate_ocr_job(frame, result["detections"], req.camera_id))
+    except Exception:
+        pass  # Never block detection on scheduling failure
 
     return DetectResponse(
         camera_id=req.camera_id,
