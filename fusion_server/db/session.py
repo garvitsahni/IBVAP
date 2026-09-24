@@ -1,10 +1,13 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from contextlib import contextmanager
+import logging
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ibvap.db")
 
@@ -149,6 +152,7 @@ def init_db():
                 migrate_alert_status_check(raw, db_path=db_path)
                 raw.commit()
             except Exception:
+                logger.exception("alerts status CHECK migration failed; old CHECK remains")
                 try:
                     raw.rollback()
                 except Exception:

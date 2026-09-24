@@ -27,7 +27,7 @@ class AlertCreate(BaseModel):
 
 
 class AlertUpdate(BaseModel):
-    status: Optional[str] = None  # "fired" | "enriched" | "acknowledged"
+    status: Optional[str] = None  # "fired" | "enriched" | "acknowledged" | "escalated" | "false_positive"
     ai_explanation: Optional[str] = None
     clip_path: Optional[str] = None
     trajectory_projection: Optional[dict] = None
@@ -60,12 +60,15 @@ class AlertResponse(BaseModel):
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
 _TERMINAL_STATUS = "false_positive"
+_ALLOWED_STATUSES = ("fired", "enriched", "acknowledged", "escalated", "false_positive")
 
 
 def _transition_status(db: Session, alert: Alert, new_status: str) -> None:
     """fired|enriched|acknowledged|escalated → anything; false_positive terminal."""
     if alert.status == _TERMINAL_STATUS:
         raise HTTPException(status_code=400, detail="false_positive is terminal")
+    if new_status not in _ALLOWED_STATUSES:
+        raise HTTPException(status_code=400, detail=f"invalid status: {new_status}")
     alert.status = new_status
     db.commit()
     db.refresh(alert)
@@ -263,10 +266,11 @@ async def update_alert(alert_id: str, update: AlertUpdate, db: Session = Depends
         raise HTTPException(status_code=404, detail="Alert not found")
 
     if update.status is not None:
-        alert.status = update.status
+        _transition_status(db, alert, update.status)
     if update.ai_explanation is not None:
         alert.ai_explanation = update.ai_explanation
-        alert.status = "enriched"
+        if alert.status != _TERMINAL_STATUS:
+            alert.status = "enriched"
         alert.enriched_at = datetime.utcnow()
     if update.clip_path is not None:
         alert.clip_path = update.clip_path
