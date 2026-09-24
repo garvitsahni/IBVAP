@@ -337,6 +337,55 @@ def _ocr_region(crop_img) -> list:
     return candidates
 
 
+# Debug capture for car-miss diagnosis (Phase 1 of car+plate plan).
+# IBVAP_DEBUG_DETECT=1 dumps raw frames + raw predictions + final dets to
+# IBVAP_DEBUG_DIR (default debug/car-miss). Capped per process; never raises.
+_debug_dump_count = 0
+
+
+def _maybe_debug_dump(frame, raw_dets, final_dets, meta) -> None:
+    """Best-effort debug dump. Reads env itself so tests can toggle it."""
+    import cv2
+    import json
+    import os
+    import time
+    global _debug_dump_count
+    try:
+        if os.environ.get("IBVAP_DEBUG_DETECT") != "1":
+            return
+        max_frames = int(os.environ.get("IBVAP_DEBUG_MAX_FRAMES", "300"))
+        if _debug_dump_count >= max_frames:
+            if _debug_dump_count == max_frames:
+                logger.warning(f"[DEBUG_DETECT] cap reached ({max_frames} frames) — stopping dumps")
+                _debug_dump_count += 1
+            return
+        outdir = os.environ.get("IBVAP_DEBUG_DIR", "debug/car-miss")
+        os.makedirs(outdir, exist_ok=True)
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        stem = f"frame_{ts}_{_debug_dump_count:04d}"
+        cv2.imwrite(os.path.join(outdir, stem + ".jpg"), frame)
+        with open(os.path.join(outdir, stem + ".json"), "w") as f:
+            json.dump({
+                "meta": meta,
+                "raw_predictions": [
+                    {"class_id": d.class_id, "class_name": d.class_name,
+                     "confidence": d.confidence,
+                     "bbox": [d.bbox.x1, d.bbox.y1, d.bbox.x2, d.bbox.y2]}
+                    for d in sorted(raw_dets, key=lambda d: d.confidence, reverse=True)[:50]
+                ],
+                "final_detections": [
+                    {"class_id": d.class_id, "class_name": d.class_name,
+                     "confidence": d.confidence,
+                     "bbox": [d.bbox.x1, d.bbox.y1, d.bbox.x2, d.bbox.y2],
+                     "plate_text": d.plate_text}
+                    for d in final_dets
+                ],
+            }, f)
+        _debug_dump_count += 1
+    except Exception as e:
+        logger.debug(f"[DEBUG_DETECT] dump failed (non-fatal): {e}")
+
+
 def _dedup(dets: List[DetectionResult], iou_thresh=0.4) -> List[DetectionResult]:
     if not dets:
         return dets
@@ -461,6 +510,20 @@ def _process_frame(frame, conf: float, camera_id: str) -> dict:
                                     break
                 except Exception as e:
                     logger.debug(f"Frame-level plate detection failed: {e}")
+
+        # Debug capture for car-miss diagnosis: raw probe at conf 0.01 on the
+        # same enhanced frame, plus final post-dedup dets. Flag-gated, capped,
+        # never raises (see _maybe_debug_dump). Detection-only (plate_reads=None).
+        try:
+            import os
+            if os.environ.get("IBVAP_DEBUG_DETECT") == "1":
+                raw_probe = _run_yolo(enhanced, 0.01, camera_id=camera_id, plate_reads=None)
+                _maybe_debug_dump(frame, raw_probe, dets, {
+                    "width": w, "height": h, "brightness": brightness,
+                    "is_dark": dark, "passes": passes,
+                })
+        except Exception as e:
+            logger.debug(f"[DEBUG_DETECT] probe failed (non-fatal): {e}")
     except HTTPException:
         raise
     except Exception as e:

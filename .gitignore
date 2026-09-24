@@ -19,5 +19,6 @@ footage/
 data/
 models/*.bak
 storage/
+debug/
 yolov8m.pt
 dashboard/tsconfig.tsbuildinfo
